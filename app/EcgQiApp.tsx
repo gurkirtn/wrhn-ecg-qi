@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, Award, BarChart3, Bell, BookOpen, BrainCircuit, Check,
   CheckCircle2, ChevronDown, ClipboardList, Clock3, Filter, GraduationCap, HeartPulse,
@@ -42,6 +42,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
 function Shell() {
   const location = useLocation();
   const [mobile, setMobile] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobile ? "open" : ""}`}>
@@ -58,7 +59,7 @@ function Shell() {
           ))}
         </nav>
         <div className="side-note"><ShieldCheck size={16}/><span><strong>QI workspace</strong><small>De-identified data only</small></span></div>
-        <Link to="/cases" className="button primary upload-side"><Upload size={16}/>Upload ECG</Link>
+        <button onClick={() => setUploadOpen(true)} className="button primary upload-side"><Upload size={16}/>Upload ECG</button>
       </aside>
       {mobile && <button aria-label="Close navigation overlay" className="overlay" onClick={() => setMobile(false)} />}
       <div className="main-area">
@@ -76,8 +77,8 @@ function Shell() {
         </header>
         <main className="content">
           <Routes>
-            <Route path="/" element={<Dashboard/>}/>
-            <Route path="/cases" element={<CasesPage/>}/>
+            <Route path="/" element={<Dashboard openUpload={() => setUploadOpen(true)}/>}/>
+            <Route path="/cases" element={<CasesPage openUpload={() => setUploadOpen(true)}/>}/>
             <Route path="/cases/:id" element={<CaseDetail/>}/>
             <Route path="/review" element={<ReviewPage/>}/>
             <Route path="/learning" element={<LearningPage/>}/>
@@ -87,8 +88,93 @@ function Shell() {
           </Routes>
         </main>
       </div>
+      {uploadOpen && <UploadWorkflow onClose={() => setUploadOpen(false)}/>}
     </div>
   );
+}
+
+function UploadWorkflow({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [fileName, setFileName] = useState("");
+  const [confidence, setConfidence] = useState(72);
+  const [diagnosis, setDiagnosis] = useState("Sinus Tachycardia");
+  const [processIndex, setProcessIndex] = useState(0);
+  const [outcome, setOutcome] = useState<"accepted" | "maintained" | "expert">("expert");
+  const stages = [
+    ["Image Quality Validation", "Checking lead placement, noise, and signal clarity"],
+    ["Waveform Segmentation", "Identifying P, QRS, and T boundaries across all 12 leads"],
+    ["Feature Extraction", "Computing intervals, axes, amplitudes, and morphology"],
+    ["AI Interpretation", "Running simulated ensemble model - ECG-AI v2.4"],
+    ["Clinician Comparison", "Comparing AI output against clinician interpretation"],
+  ];
+  useEffect(() => {
+    if (step !== 3) return;
+    setProcessIndex(0);
+    let current = 0;
+    const timer = window.setInterval(() => {
+      current += 1;
+      setProcessIndex(current);
+      if (current >= stages.length) {
+        window.clearInterval(timer);
+        window.setTimeout(() => setStep(4), 450);
+      }
+    }, 540);
+    return () => window.clearInterval(timer);
+  }, [step]);
+  const finish = (choice: "accepted" | "maintained" | "expert") => {
+    setOutcome(choice);
+    setStep(5);
+  };
+  return <div className="workflow-backdrop" role="presentation">
+    <section className="upload-workflow" role="dialog" aria-modal="true" aria-labelledby="upload-workflow-title">
+      <header className="workflow-header"><span className="workflow-icon"><Upload size={20}/></span><div><h2 id="upload-workflow-title">Upload ECG — New Case Workflow</h2><p>WRHN Cardiac Services · Dr. A. Nkemdirim</p></div><button onClick={onClose} aria-label="Close upload workflow"><X size={20}/></button></header>
+      <div className="stepper" aria-label={`Step ${step} of 5`}>
+        {["Upload ECG","Clinician Review","AI Processing","Comparison","Expert Review"].map((label, index) => {
+          const number = index + 1;
+          const completed = number < step;
+          return <div className={`step ${number === step ? "active" : ""} ${completed ? "complete" : ""}`} key={label}><span>{completed ? <Check size={16}/> : number}</span><b>{label}</b>{index < 4 && <i/>}</div>;
+        })}
+      </div>
+      <div className="workflow-body">
+        {step === 1 && <div className="upload-step">
+          <div className="privacy-warning"><AlertTriangle size={18}/><div><strong>Privacy Requirement</strong><p>Do not enter patient names, dates of birth, MRN, or identifying information. Use anonymized patient IDs only. All uploads are audit-logged.</p></div></div>
+          <div className="upload-columns">
+            <div className="workflow-form"><h3>Anonymized Patient Information</h3><label>Anonymized Patient ID *<input defaultValue="WRHN-00482" className="mono"/></label><div className="form-pair"><label>Age Range<select defaultValue="65-74"><option>18-34</option><option>35-49</option><option>50-64</option><option>65-74</option><option>75+</option></select></label><label>Sex<select defaultValue="Male"><option>Female</option><option>Male</option><option>Other / not specified</option></select></label></div><label>Department<select defaultValue="Emergency"><option>Emergency</option><option>Cardiology</option><option>ICU</option><option>Internal Medicine</option></select></label><label>Reason for ECG<textarea defaultValue="Palpitations and lightheadedness, new onset"/></label></div>
+            <div><h3>ECG File Upload</h3><label className={`dropzone ${fileName ? "has-file" : ""}`}><input type="file" accept=".jpg,.jpeg,.png,.pdf,.dcm,.dicom,.xml" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")}/>{fileName ? <><CheckCircle2 size={34}/><strong>{fileName}</strong><span>Ready for clinician review</span></> : <><Upload size={34}/><strong>Drag & drop or click to upload</strong><span>Supports JPG, PNG, PDF, DICOM, XML</span></>}</label><div className="file-types"><span>.jpg</span><span>.png</span><span>.pdf</span><span>.dicom</span><span>.xml</span></div><button className="demo-file" onClick={() => setFileName("WRHN-00482-demo.dicom")}>Use anonymized demo ECG</button></div>
+          </div>
+        </div>}
+        {step === 2 && <div className="clinician-step">
+          <div className="workflow-section-title"><span className="soft-icon"><Stethoscope size={20}/></span><div><h3>Clinician Interpretation</h3><p>Dr. A. Nkemdirim · Emergency Medicine · Dec 18, 2024 10:02</p></div><span className="anonymized mono">WRHN-00482</span></div>
+          <WorkflowEcg compact/>
+          <div className="clinician-form-grid"><div><label>Primary Diagnosis *<select value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)}><option>Sinus Tachycardia</option><option>Atrial Fibrillation</option><option>Atrial Flutter</option><option>Normal Sinus Rhythm</option><option>STEMI</option></select></label><div className="form-pair"><label>Rhythm<select defaultValue="Regular"><option>Regular</option><option>Irregular</option><option>Irregularly irregular</option></select></label><label>Ventricular Rate<div className="suffix-input"><input defaultValue="148"/><span>bpm</span></div></label></div><label>Clinical Confidence: <b>{confidence}%</b><input type="range" min="0" max="100" value={confidence} onChange={(e) => setConfidence(Number(e.target.value))}/><div className="range-labels"><span>Uncertain</span><span>Confident</span></div></label></div><div><label>Key Findings<textarea defaultValue="Rapid ventricular rate. No obvious P wave abnormalities. QRS complexes appear narrow and regular. No ST segment changes noted."/></label><label>Clinical Notes<textarea defaultValue="Patient presented with acute palpitations. Vitals stable. ECG ordered on arrival to ED."/></label></div></div>
+          <div className="independence-note"><ShieldCheck size={16}/>Your interpretation is recorded before the AI second read is revealed.</div>
+        </div>}
+        {step === 3 && <div className="processing-step"><span className="processing-ring"><BrainCircuit size={32}/></span><h3>AI Processing ECG...</h3><p>ECG-AI v2.4 · WRHN-00482 · Simulated prototype analysis</p><div className="processing-list">{stages.map(([title, text], index) => <div className={`${index < processIndex ? "done" : ""} ${index === processIndex ? "running" : ""}`} key={title}><span>{index < processIndex ? <Check size={17}/> : index + 1}</span><div><strong>{title}</strong><small>{text}</small></div><b>{index < processIndex ? "Done" : index === processIndex ? "Running" : ""}</b></div>)}</div><p className="decision-note centered"><ShieldCheck size={14}/>This simulated AI output is decision support, not a diagnosis.</p></div>}
+        {step === 4 && <div className="comparison-step">
+          <div className="discrepancy-alert"><AlertTriangle size={22}/><div><strong>Major Discrepancy — High Priority</strong><p>Clinician: <b>{diagnosis}</b> · AI: <b>Atrial Flutter with 2:1 Conduction</b> · AI Confidence: <b>91%</b></p></div><PriorityBadge priority="high"/></div>
+          <div className="case-summary">{[["Patient ID","WRHN-00482"],["Age Range","65-74"],["Sex","Male"],["Department","Emergency"],["ECG Acquired","Dec 18, 2024 · 09:42"],["Reason","Palpitations, lightheadedness"]].map(([label,value]) => <div key={label}><span>{label}</span><b className={label==="Patient ID"?"mono id-link":""}>{value}</b></div>)}</div>
+          <p className="waveform-caption"><Activity size={16}/>ECG Waveform — simulated flutter pattern highlighted</p><WorkflowEcg/>
+          <div className="comparison-grid"><div className="comparison-card"><header><Stethoscope size={18}/><strong>Clinician Interpretation</strong><span>Dr. A. Nkemdirim</span></header><div><span>DIAGNOSIS</span><h3>{diagnosis}</h3><div className="comparison-confidence"><span>CONFIDENCE</span><i><b style={{width:`${confidence}%`}}/></i><strong>{confidence}%</strong></div><span>FINDINGS</span><ul><li>Rapid ventricular rate ~148 bpm</li><li>Regular rhythm</li><li>No visible P-wave abnormalities</li><li>No ST changes noted</li></ul><p className="quote-note">“Rapid rate consistent with sinus tachycardia in the context of acute presentation.”</p></div></div>
+            <div className="comparison-card ai"><header><Zap size={18}/><strong>AI Interpretation</strong><span>ECG-AI v2.4 · 99ms</span></header><div><div className="ai-title"><div><span>DIAGNOSIS</span><h3>Atrial Flutter with 2:1 Conduction</h3></div><strong>91%</strong></div><span>DETECTED FEATURES</span><ul><li>Sawtooth flutter waves at ~300 bpm</li><li>Regular RR intervals (~400ms)</li><li>2:1 AV conduction pattern confirmed</li><li>No delta waves — excludes WPW</li></ul><p className="explainer">Regular sawtooth flutter waves at ~300 bpm with 2:1 block produce a ventricular rate near 150 bpm that can mimic sinus tachycardia. RR regularity and inferior-lead morphology support clinical reassessment.</p><p className="decision-note"><AlertTriangle size={14}/><b>Note:</b> AI is a quality-improvement second reader. Final clinical decisions rest with the treating physician.</p></div></div>
+          </div>
+        </div>}
+        {step === 5 && <div className="completion-step"><span className="completion-icon">{outcome === "expert" ? <Sparkles size={35}/> : <CheckCircle2 size={35}/>}</span><h3>{outcome === "expert" ? "Sent to Expert Review" : "Comparison Decision Recorded"}</h3><p>{outcome === "expert" ? "WRHN-00482 has been added to the high-priority cardiology review queue. The clinician interpretation remains unchanged until adjudication." : outcome === "accepted" ? "The AI suggestion was accepted as the working comparison result. The treating clinician remains responsible for final care decisions." : "The clinician interpretation was maintained and the disagreement was documented for quality-improvement follow-up."}</p><div className="completion-summary"><span><b>Case</b><strong className="mono">WRHN-00482</strong></span><span><b>Status</b><strong>{outcome === "expert" ? "Waiting for expert review" : "Decision recorded"}</strong></span><span><b>Privacy</b><strong>Anonymized</strong></span></div><div className="guardrail"><ShieldCheck size={18}/><span><strong>Audit trail updated</strong>All workflow actions are simulated locally for this prototype.</span></div></div>}
+      </div>
+      <footer className="workflow-footer">
+        {step === 1 && <><span/><button className="button primary" disabled={!fileName} onClick={() => setStep(2)}>Continue to Clinician Interpretation <ChevronDown className="chevron-right" size={16}/></button></>}
+        {step === 2 && <><button className="button ghost" onClick={() => setStep(1)}>‹ Back</button><div><button className="button secondary">Save Draft</button><button className="button primary" onClick={() => setStep(3)}><Zap size={16}/>Submit for AI Analysis</button></div></>}
+        {step === 3 && <><span/><button className="button secondary" onClick={() => setStep(2)}>Cancel processing</button></>}
+        {step === 4 && <><button className="button ghost" onClick={() => setStep(2)}>‹ Back</button><div><button className="button secondary decision" onClick={() => finish("accepted")}><Check size={16}/>Accept AI Suggestion</button><button className="button secondary decision" onClick={() => finish("maintained")}><Stethoscope size={16}/>Maintain Clinician Interpretation</button><button className="button primary decision" onClick={() => finish("expert")}><Sparkles size={16}/>Send to Expert Review</button></div></>}
+        {step === 5 && <><button className="button ghost" onClick={onClose}>Close</button><button className="button primary" onClick={() => { onClose(); navigate(outcome === "expert" ? "/review" : "/cases/PT-20839"); }}>{outcome === "expert" ? "Open Review Queue" : "View Case"} →</button></>}
+      </footer>
+    </section>
+  </div>;
+}
+
+function WorkflowEcg({ compact = false }: { compact?: boolean }) {
+  const leads = compact ? ["I","II","V1","V5"] : ["I","II","III","aVR","aVL","aVF","V1","V2","V3","V4","V5","V6"];
+  return <div className={`workflow-ecg ${compact ? "compact" : ""}`}><div className="ecg-meta"><b>12-LEAD ECG{compact ? "" : " — FLUTTER PATTERN DETECTED"}</b><span>ANONYMIZED · 25mm/s · 10mm/mV</span></div><div>{leads.map((lead,index) => <EcgStrip key={lead} lead={lead} phase={index%3*4}/>)}</div></div>;
 }
 
 function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
@@ -114,9 +200,9 @@ function PriorityBadge({ priority }: { priority: Priority }) {
 const tickStyle = { fontSize: 11, fill: "#71839d" };
 const gridStyle = "#E6ECF3";
 
-function Dashboard() {
+function Dashboard({ openUpload }: { openUpload: () => void }) {
   return <>
-    <PageHeader title="Dashboard" subtitle="Wednesday, December 18, 2024 · WRHN Cardiac Services" actions={<><span className="updated"><Clock3 size={14}/>Updated 2 min ago</span><Link className="button primary" to="/cases"><Upload size={15}/>Upload ECG</Link></>}/>
+    <PageHeader title="Dashboard" subtitle="Wednesday, December 18, 2024 · WRHN Cardiac Services" actions={<><span className="updated"><Clock3 size={14}/>Updated 2 min ago</span><button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button></>}/>
     <div className="kpi-grid">
       <KpiCard icon={Activity} tone="blue" value="143" label="ECGs Today" delta="↗ 9%" note="↑ 12 from yesterday"/>
       <KpiCard icon={Zap} tone="green" value="88.1%" label="AI Agreement Rate" delta="↗ 2.3%" note="3-month rolling average"/>
@@ -142,13 +228,13 @@ function RecentTable({ rows, showDepartment = false }: { rows: Case[]; showDepar
   </Panel>;
 }
 
-function CasesPage() {
+function CasesPage({ openUpload }: { openUpload: () => void }) {
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState("All Departments");
   const [status, setStatus] = useState("All Statuses");
   const filtered = useMemo(() => cases.filter((c) => (!search || `${c.patientId} ${c.clinicianDx} ${c.aiDx}`.toLowerCase().includes(search.toLowerCase())) && (department === "All Departments" || c.department === department) && (status === "All Statuses" || c.verdict === status)), [search, department, status]);
   return <>
-    <PageHeader title="ECG Cases" subtitle="Anonymized cases across WRHN Cardiac Services" actions={<><button className="button primary"><Upload size={15}/>Upload ECG</button><button className="button secondary"><Filter size={15}/>Filter</button></>}/>
+    <PageHeader title="ECG Cases" subtitle="Anonymized cases across WRHN Cardiac Services" actions={<><button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button><button className="button secondary"><Filter size={15}/>Filter</button></>}/>
     <div className="filter-bar card"><label><Search size={16}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search patient ID or diagnosis" aria-label="Search cases"/></label><select value={department} onChange={(e) => setDepartment(e.target.value)} aria-label="Filter by department"><option>All Departments</option>{["Emergency","Cardiology","ICU","Internal Medicine","Surgery"].map(x=><option key={x}>{x}</option>)}</select><select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status"><option>All Statuses</option><option value="concordant">Concordant</option><option value="minor">Minor discrepancy</option><option value="major">Major discrepancy</option></select><span>{filtered.length} cases</span></div>
     <RecentTable rows={filtered} showDepartment/>
   </>;
