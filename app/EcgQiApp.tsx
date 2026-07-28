@@ -95,6 +95,7 @@ function Shell() {
 
 function UploadWorkflow({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
+  const [mockSeed, setMockSeed] = useState(0);
   const [step, setStep] = useState(1);
   const [fileName, setFileName] = useState("");
   const [confidence, setConfidence] = useState(72);
@@ -126,6 +127,11 @@ function UploadWorkflow({ onClose }: { onClose: () => void }) {
     setOutcome(choice);
     setStep(5);
   };
+  const loadRandomMockEcg = () => {
+    const nextSeed = Math.floor(Math.random() * 4);
+    setMockSeed(nextSeed);
+    setFileName(`mock-ecg-placeholder-0${nextSeed + 1}.png`);
+  };
   return <div className="workflow-backdrop" role="presentation">
     <section className="upload-workflow" role="dialog" aria-modal="true" aria-labelledby="upload-workflow-title">
       <header className="workflow-header"><span className="workflow-icon"><Upload size={20}/></span><div><h2 id="upload-workflow-title">Upload ECG — New Case Workflow</h2><p>WRHN Cardiac Services · Dr. A. Nkemdirim</p></div><button onClick={onClose} aria-label="Close upload workflow"><X size={20}/></button></header>
@@ -141,12 +147,12 @@ function UploadWorkflow({ onClose }: { onClose: () => void }) {
           <div className="privacy-warning"><AlertTriangle size={18}/><div><strong>Privacy Requirement</strong><p>Do not enter patient names, dates of birth, MRN, or identifying information. Use anonymized patient IDs only. All uploads are audit-logged.</p></div></div>
           <div className="upload-columns">
             <div className="workflow-form"><h3>Anonymized Patient Information</h3><label>Anonymized Patient ID *<input defaultValue="WRHN-00482" className="mono"/></label><div className="form-pair"><label>Age Range<select defaultValue="65-74"><option>18-34</option><option>35-49</option><option>50-64</option><option>65-74</option><option>75+</option></select></label><label>Sex<select defaultValue="Male"><option>Female</option><option>Male</option><option>Other / not specified</option></select></label></div><label>Department<select defaultValue="Emergency"><option>Emergency</option><option>Cardiology</option><option>ICU</option><option>Internal Medicine</option></select></label><label>Reason for ECG<textarea defaultValue="Palpitations and lightheadedness, new onset"/></label></div>
-            <div><h3>ECG File Upload</h3><label className={`dropzone ${fileName ? "has-file" : ""}`}><input type="file" accept=".jpg,.jpeg,.png,.pdf,.dcm,.dicom,.xml" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")}/>{fileName ? <><CheckCircle2 size={34}/><strong>{fileName}</strong><span>Ready for clinician review</span></> : <><Upload size={34}/><strong>Drag & drop or click to upload</strong><span>Supports JPG, PNG, PDF, DICOM, XML</span></>}</label><div className="file-types"><span>.jpg</span><span>.png</span><span>.pdf</span><span>.dicom</span><span>.xml</span></div><button className="demo-file" onClick={() => setFileName("WRHN-00482-demo.dicom")}>Use anonymized demo ECG</button></div>
+            <div><h3>ECG File Upload</h3><button type="button" className={`dropzone mock-dropzone ${fileName ? "has-file" : ""}`} onClick={loadRandomMockEcg}>{fileName ? <><div className="mock-ecg-preview"><EcgStrip lead={`MOCK ${mockSeed + 1}`} phase={mockSeed * 4}/></div><strong>{fileName}</strong><span>Random anonymized placeholder ready for the mock model</span></> : <><Upload size={34}/><strong>Click to upload ECG</strong><span>A random anonymized ECG placeholder will be loaded</span></>}</button><div className="mock-mode-note"><BrainCircuit size={14}/>Prototype mode · no patient file is uploaded</div>{fileName && <button className="demo-file" onClick={loadRandomMockEcg}>↻ Load a different random ECG</button>}</div>
           </div>
         </div>}
         {step === 2 && <div className="clinician-step">
           <div className="workflow-section-title"><span className="soft-icon"><Stethoscope size={20}/></span><div><h3>Clinician Interpretation</h3><p>Dr. A. Nkemdirim · Emergency Medicine · Dec 18, 2024 10:02</p></div><span className="anonymized mono">WRHN-00482</span></div>
-          <WorkflowEcg compact/>
+          <WorkflowEcg compact seed={mockSeed}/>
           <div className="clinician-form-grid"><div><label>Primary Diagnosis *<select value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)}><option>Sinus Tachycardia</option><option>Atrial Fibrillation</option><option>Atrial Flutter</option><option>Normal Sinus Rhythm</option><option>STEMI</option></select></label><div className="form-pair"><label>Rhythm<select defaultValue="Regular"><option>Regular</option><option>Irregular</option><option>Irregularly irregular</option></select></label><label>Ventricular Rate<div className="suffix-input"><input defaultValue="148"/><span>bpm</span></div></label></div><label>Clinical Confidence: <b>{confidence}%</b><input type="range" min="0" max="100" value={confidence} onChange={(e) => setConfidence(Number(e.target.value))}/><div className="range-labels"><span>Uncertain</span><span>Confident</span></div></label></div><div><label>Key Findings<textarea defaultValue="Rapid ventricular rate. No obvious P wave abnormalities. QRS complexes appear narrow and regular. No ST segment changes noted."/></label><label>Clinical Notes<textarea defaultValue="Patient presented with acute palpitations. Vitals stable. ECG ordered on arrival to ED."/></label></div></div>
           <div className="independence-note"><ShieldCheck size={16}/>Your interpretation is recorded before the AI second read is revealed.</div>
         </div>}
@@ -154,7 +160,7 @@ function UploadWorkflow({ onClose }: { onClose: () => void }) {
         {step === 4 && <div className="comparison-step">
           <div className="discrepancy-alert"><AlertTriangle size={22}/><div><strong>Major Discrepancy — High Priority</strong><p>Clinician: <b>{diagnosis}</b> · AI: <b>Atrial Flutter with 2:1 Conduction</b> · AI Confidence: <b>91%</b></p></div><PriorityBadge priority="high"/></div>
           <div className="case-summary">{[["Patient ID","WRHN-00482"],["Age Range","65-74"],["Sex","Male"],["Department","Emergency"],["ECG Acquired","Dec 18, 2024 · 09:42"],["Reason","Palpitations, lightheadedness"]].map(([label,value]) => <div key={label}><span>{label}</span><b className={label==="Patient ID"?"mono id-link":""}>{value}</b></div>)}</div>
-          <p className="waveform-caption"><Activity size={16}/>ECG Waveform — simulated flutter pattern highlighted</p><WorkflowEcg/>
+          <p className="waveform-caption"><Activity size={16}/>ECG Waveform — simulated flutter pattern highlighted</p><WorkflowEcg seed={mockSeed}/>
           <div className="comparison-grid"><div className="comparison-card"><header><Stethoscope size={18}/><strong>Clinician Interpretation</strong><span>Dr. A. Nkemdirim</span></header><div><span>DIAGNOSIS</span><h3>{diagnosis}</h3><div className="comparison-confidence"><span>CONFIDENCE</span><i><b style={{width:`${confidence}%`}}/></i><strong>{confidence}%</strong></div><span>FINDINGS</span><ul><li>Rapid ventricular rate ~148 bpm</li><li>Regular rhythm</li><li>No visible P-wave abnormalities</li><li>No ST changes noted</li></ul><p className="quote-note">“Rapid rate consistent with sinus tachycardia in the context of acute presentation.”</p></div></div>
             <div className="comparison-card ai"><header><Zap size={18}/><strong>AI Interpretation</strong><span>ECG-AI v2.4 · 99ms</span></header><div><div className="ai-title"><div><span>DIAGNOSIS</span><h3>Atrial Flutter with 2:1 Conduction</h3></div><strong>91%</strong></div><span>DETECTED FEATURES</span><ul><li>Sawtooth flutter waves at ~300 bpm</li><li>Regular RR intervals (~400ms)</li><li>2:1 AV conduction pattern confirmed</li><li>No delta waves — excludes WPW</li></ul><p className="explainer">Regular sawtooth flutter waves at ~300 bpm with 2:1 block produce a ventricular rate near 150 bpm that can mimic sinus tachycardia. RR regularity and inferior-lead morphology support clinical reassessment.</p><p className="decision-note"><AlertTriangle size={14}/><b>Note:</b> AI is a quality-improvement second reader. Final clinical decisions rest with the treating physician.</p></div></div>
           </div>
@@ -172,9 +178,9 @@ function UploadWorkflow({ onClose }: { onClose: () => void }) {
   </div>;
 }
 
-function WorkflowEcg({ compact = false }: { compact?: boolean }) {
+function WorkflowEcg({ compact = false, seed = 0 }: { compact?: boolean; seed?: number }) {
   const leads = compact ? ["I","II","V1","V5"] : ["I","II","III","aVR","aVL","aVF","V1","V2","V3","V4","V5","V6"];
-  return <div className={`workflow-ecg ${compact ? "compact" : ""}`}><div className="ecg-meta"><b>12-LEAD ECG{compact ? "" : " — FLUTTER PATTERN DETECTED"}</b><span>ANONYMIZED · 25mm/s · 10mm/mV</span></div><div>{leads.map((lead,index) => <EcgStrip key={lead} lead={lead} phase={index%3*4}/>)}</div></div>;
+  return <div className={`workflow-ecg ${compact ? "compact" : ""}`}><div className="ecg-meta"><b>12-LEAD ECG{compact ? "" : " — FLUTTER PATTERN DETECTED"}</b><span>ANONYMIZED · MOCK {seed + 1} · 25mm/s · 10mm/mV</span></div><div>{leads.map((lead,index) => <EcgStrip key={lead} lead={lead} phase={seed * 3 + index%3*4}/>)}</div></div>;
 }
 
 function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
