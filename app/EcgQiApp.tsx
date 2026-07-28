@@ -291,16 +291,69 @@ function InterpretationContent({ title, findings, note }: { title: string; findi
 }
 
 function ReviewPage() {
-  const navigate = useNavigate();
+  const [selected, setSelected] = useState<Case | null>(null);
+  const [completedIds, setCompletedIds] = useState<string[]>([]);
+  const newReviewCase: Case = {
+    ...cases[19],
+    id: "case-wrhn-00482",
+    patientId: "WRHN-00482",
+    priority: "high",
+    status: "waiting",
+    clinicianDx: "Sinus Tachycardia",
+    aiDx: "Atrial Flutter with 2:1 Conduction",
+    verdict: "major",
+    elapsed: "Just now",
+  };
+  const baseCompleted = cases.slice(7,11);
+  const newlyCompleted = completedIds.map(id => id === newReviewCase.id ? newReviewCase : cases.find(c => c.id === id)).filter((c): c is Case => Boolean(c));
   const columns = [
-    { key: "waiting", title: "WAITING", tone: "amber", items: cases.slice(0,4) },
-    { key: "review", title: "UNDER REVIEW", tone: "blue", items: cases.slice(4,7) },
-    { key: "complete", title: "COMPLETED", tone: "green", items: cases.slice(7,11) },
+    { key: "waiting", title: "WAITING", tone: "amber", items: [newReviewCase, ...cases.slice(0,4)].filter(c => !completedIds.includes(c.id)) },
+    { key: "review", title: "UNDER REVIEW", tone: "blue", items: cases.slice(4,7).filter(c => !completedIds.includes(c.id)) },
+    { key: "complete", title: "COMPLETED", tone: "green", items: [...baseCompleted, ...newlyCompleted.filter(c => !baseCompleted.some(existing => existing.id === c.id))] },
   ];
   return <>
     <PageHeader title="Review Queue" subtitle="Expert cardiology review board" actions={<select aria-label="Department filter"><option>All Departments</option><option>Emergency</option><option>Cardiology</option></select>}/>
-    <div className="kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((c,i)=><button key={c.id} className="case-card" onClick={()=>navigate(`/cases/${c.patientId}`)}><div><span className="id-link">{c.patientId}</span><PriorityBadge priority={c.priority}/></div><p>Clinician: <strong>{c.clinicianDx}</strong></p><p>AI: <strong className="blue-text">{c.aiDx}</strong></p>{col.key==="complete"&&<p className="final">Final: {i%2?c.aiDx:c.clinicianDx}<CheckCircle2 size={15}/></p>}<footer><span><Clock3 size={14}/>{c.elapsed}</span>{col.key==="review"&&<b>{i%2?"Dr. Patel":"Dr. Chen"}</b>}</footer></button>)}</section>)}</div>
+    <div className="kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((c,i)=><button key={c.id} className={`case-card ${selected?.id === c.id ? "selected" : ""}`} onClick={()=>setSelected(c)}><div><span className="id-link">{c.patientId}</span><PriorityBadge priority={c.priority}/></div><p>Clinician: <strong>{c.clinicianDx}</strong></p><p>AI: <strong className="blue-text">{c.aiDx}</strong></p>{col.key==="complete"&&<p className="final">Final: {i%2?c.aiDx:c.clinicianDx}<CheckCircle2 size={15}/></p>}<footer><span><Clock3 size={14}/>{c.elapsed}</span>{col.key==="review"&&<b>{i%2?"Dr. Patel":"Dr. Chen"}</b>}</footer></button>)}</section>)}</div>
+    {selected && <ExpertReviewDrawer key={selected.id} caseItem={selected} onClose={()=>setSelected(null)} onSubmit={()=>setCompletedIds(ids => ids.includes(selected.id) ? ids : [...ids, selected.id])}/>}
   </>;
+}
+
+function ExpertReviewDrawer({ caseItem, onClose, onSubmit }: { caseItem: Case; onClose: () => void; onSubmit: () => void }) {
+  const [finalDx, setFinalDx] = useState("");
+  const [notes, setNotes] = useState("");
+  const [takeaway, setTakeaway] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+  const suggestions = Array.from(new Set([caseItem.clinicianDx, caseItem.aiDx]));
+  const submitReview = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!finalDx || !notes || !takeaway) return;
+    onSubmit();
+    setSubmitted(true);
+  };
+  return <div className="review-drawer-layer">
+    <button className="review-drawer-scrim" onClick={onClose} aria-label="Close expert review"/>
+    <aside className="expert-review-drawer" role="dialog" aria-modal="true" aria-labelledby="expert-review-title">
+      <header><div><h2 id="expert-review-title">Expert Review</h2><span className="mono">{caseItem.patientId}</span></div><button onClick={onClose} aria-label="Close expert review"><X size={20}/></button></header>
+      {submitted ? <div className="expert-review-success"><span><CheckCircle2 size={36}/></span><h3>Expert review submitted</h3><p>The final diagnosis was recorded, the case moved to Completed, and the learning takeaway was sent to the clinician dashboard.</p><div><b>Final diagnosis</b><strong>{finalDx}</strong></div><button className="button primary" onClick={onClose}>Return to Review Queue</button></div> :
+      <form onSubmit={submitReview}>
+        <div className="expert-review-body">
+          <div className="drawer-alert"><AlertTriangle size={17}/><div><strong>Major Discrepancy</strong><p>Clinical decision authority rests with the treating physician. AI is a second-reader tool only.</p></div></div>
+          <div className="drawer-dx-compare"><div><span>CLINICIAN DX</span><strong>{caseItem.clinicianDx}</strong></div><div><span>AI DX</span><strong>{caseItem.aiDx}</strong></div></div>
+          <WorkflowEcg compact seed={Number(caseItem.id.replace(/\D/g,"").slice(-1)) % 4}/>
+          <label>Final Diagnosis *<input value={finalDx} onChange={event=>setFinalDx(event.target.value)} placeholder="Enter expert final diagnosis..."/></label>
+          <div className="diagnosis-suggestions">{suggestions.map(value=><button type="button" className={finalDx === value ? "active" : ""} onClick={()=>setFinalDx(value)} key={value}>{value}</button>)}</div>
+          <label>Review Notes<textarea value={notes} onChange={event=>setNotes(event.target.value)} placeholder="Clinical rationale, supporting findings, and management recommendations..."/></label>
+          <label className="takeaway-label"><span><BookOpen size={16}/>Learning Takeaway for Clinician</span><textarea value={takeaway} onChange={event=>setTakeaway(event.target.value)} placeholder="Key teaching point to send to the ordering clinician's Learning Dashboard..."/></label>
+        </div>
+        <footer><button className="button primary full" type="submit" disabled={!finalDx || !notes || !takeaway}><Check size={17}/>Submit Expert Review &amp; Send to Learning</button></footer>
+      </form>}
+    </aside>
+  </div>;
 }
 
 function LearningPage() {
