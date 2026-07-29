@@ -10,12 +10,15 @@ async function render(path = "/") {
   }, { waitUntil() {}, passThroughOnException() {} });
 }
 
-test("renders the ECG-QI application shell", async () => {
+test("renders the role-selecting mock login before the ECG-QI shell", async () => {
   const response = await render("/");
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /ECG-QI/);
-  assert.match(html, /WRHN Quality Improvement/);
+  assert.match(html, /Choose a demo account/);
+  assert.match(html, /Clinician/);
+  assert.match(html, /Expert reviewer/);
+  assert.match(html, /Current demo/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 

@@ -198,3 +198,36 @@ tbody tr:hover{background:#152741}
 .expert-guardrail svg{flex:none}.expert-guardrail p{color:#9FAAC1;line-height:1.5;margin:5px 0 0}
 @media(max-width:1080px){.role-switcher span,.role-switcher svg{display:none}.expert-dashboard-grid{grid-template-columns:1fr}}
 @media(max-width:680px){.role-switcher{padding:0 5px}.role-switcher select{max-width:112px}.expert-priority-list>a{grid-template-columns:26px minmax(0,1fr) auto}.expert-priority-list>a>small{display:none}.role-context-banner{align-items:flex-start}}
+
+/* Mock authentication and role-scoped expert review */
+.mock-login{min-height:100vh;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 18% 15%,rgba(38,93,173,.3),transparent 34%),radial-gradient(circle at 82% 82%,rgba(99,65,171,.2),transparent 30%),#07111F;color:#E8F0FA}
+.login-card{width:min(760px,100%);background:rgba(13,25,42,.96);border:1px solid #2B3D56;border-radius:18px;box-shadow:0 28px 90px rgba(0,0,0,.42);overflow:hidden}
+.login-card>header{height:72px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #26374D;background:#101D30}
+.login-card>header>span{color:#8FA3BC;font-size:12px;font-weight:700}
+.login-intro{display:flex;gap:16px;padding:28px 28px 20px;align-items:flex-start}
+.login-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:12px;background:#153C70;color:#83B8FF;flex:none}
+.login-intro p{margin:0 0 6px;color:#74A9F4;font-size:10px;font-weight:900;letter-spacing:.13em}
+.login-intro h1{margin:0 0 6px;font-size:26px;letter-spacing:-.02em}
+.login-intro div>span{color:#93A6BE}
+.account-options{display:grid;gap:10px;padding:0 28px 28px}
+.account-options>button{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:13px;width:100%;padding:15px;text-align:left;border:1px solid #2A3B53;border-radius:12px;background:#101D2F;color:#E7EEF8;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}
+.account-options>button:hover{border-color:#4F8CFF;background:#142641;transform:translateY(-1px)}
+.account-options>button.featured{border-color:#4A6590;background:linear-gradient(90deg,#132B4C,#171F40)}
+.account-copy{display:flex;flex-direction:column;min-width:0}
+.account-copy>strong{font-size:14px}.account-copy>small{color:#8194AD;margin-top:3px}
+.account-roles{display:flex;gap:6px;margin-top:9px}
+.account-roles i{font-style:normal;font-size:9px;text-transform:uppercase;letter-spacing:.05em;font-weight:900;color:#9AC3FF;background:#18365B;border:1px solid #315E91;border-radius:99px;padding:4px 7px}
+.account-roles i:last-child:not(:first-child),.featured .account-roles i:last-child{color:#C8B6FF;background:#292044;border-color:#564587}
+.account-action{display:flex;flex-direction:column;align-items:flex-end;gap:5px;color:#8CB9F7;font-size:12px;font-weight:800}
+.account-action b{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#C7B4FF;background:#2D2450;border-radius:99px;padding:4px 7px}
+.login-card>footer{display:flex;align-items:center;justify-content:center;gap:7px;padding:14px 20px;border-top:1px solid #26374D;background:#0B1626;color:#8194AD;font-size:11px}
+.login-card>footer svg{color:#68DA9B}.login-card>footer strong{color:#AEBED0}
+.logout-button{color:#90A4BD}.logout-button:hover{color:#FF9AA3;background:#35171E}
+.role-switcher.single-role select{cursor:default}
+.review-scope-note{display:flex;align-items:center;gap:9px;margin:-3px 0 16px;padding:11px 13px;border:1px solid #334C6C;background:#10233C;border-radius:9px;color:#A7C3E8;font-size:12px}
+.review-scope-note svg{color:#79AAEC;flex:none}
+.review-kanban{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.review-kanban .kanban-col{min-height:520px}
+
+@media(max-width:900px){.review-kanban{grid-template-columns:1fr}.review-kanban .kanban-col{min-height:0}}
+@media(max-width:620px){.mock-login{padding:12px}.login-intro{padding:22px 18px 16px}.account-options{padding:0 18px 20px}.account-options>button{grid-template-columns:40px minmax(0,1fr)}.account-action{grid-column:2;align-items:flex-start}.login-card>footer{align-items:flex-start}.login-card>header{padding:0 18px}}

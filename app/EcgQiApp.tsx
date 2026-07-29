@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, Award, BarChart3, Bell, BookOpen, BrainCircuit, Check,
   CheckCircle2, ChevronDown, ClipboardList, Clock3, Filter, GraduationCap, HeartPulse,
-  LayoutDashboard, Menu, MoreHorizontal, Search, Settings, ShieldCheck, Sparkles, Star,
+  LayoutDashboard, LogOut, Menu, MoreHorizontal, Search, Settings, ShieldCheck, Sparkles, Star,
   Stethoscope, Upload, UserRound, X, Zap,
 } from "lucide-react";
 import {
@@ -17,12 +17,19 @@ import { aiPredictions, cases, discrepancyData, learningCases, personalTrend, tr
 import type { Case, Priority, Verdict } from "./types";
 
 type WorkspaceRole = "clinician" | "expert";
+type MockAccount = {
+  id: "clinician" | "expert" | "dual";
+  name: string;
+  initials: string;
+  email: string;
+  title: string;
+  roles: WorkspaceRole[];
+};
 
 const clinicianNav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "ECG Cases", icon: HeartPulse },
   { href: "/learning", label: "Learning Dashboard", icon: GraduationCap },
-  { href: "/analytics", label: "Analytics", icon: BarChart3, section: "REPORTS" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -38,6 +45,11 @@ const chartBlue = "#2563EB";
 const green = "#16A34A";
 const amber = "#D97706";
 const red = "#DC2626";
+const mockAccounts: MockAccount[] = [
+  { id: "clinician", name: "Dr. Elena Rossi", initials: "ER", email: "clinician@wrhn.demo", title: "Emergency Medicine", roles: ["clinician"] },
+  { id: "expert", name: "Dr. Maya Chen", initials: "MC", email: "expert@wrhn.demo", title: "Cardiology Expert", roles: ["expert"] },
+  { id: "dual", name: "Dr. A. Nkemdirim", initials: "AN", email: "adaeze@wrhn.demo", title: "Emergency Medicine · Expert Reviewer", roles: ["clinician", "expert"] },
+];
 
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -48,12 +60,31 @@ function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function MockLogin({ onLogin }: { onLogin: (account: MockAccount) => void }) {
+  return <main className="mock-login">
+    <section className="login-card" aria-labelledby="login-title">
+      <header><Logo/><span>WRHN Cardiac Services</span></header>
+      <div className="login-intro"><span className="login-icon"><ShieldCheck size={24}/></span><div><p>ECG QUALITY IMPROVEMENT</p><h1 id="login-title">Choose a demo account</h1><span>Select a role-based account to enter the prototype workspace.</span></div></div>
+      <div className="account-options">
+        {mockAccounts.map(account => <button key={account.id} onClick={() => onLogin(account)} className={account.id === "dual" ? "featured" : ""}>
+          <span className="avatar">{account.initials}</span>
+          <span className="account-copy"><strong>{account.name}</strong><small>{account.email}</small><span className="account-roles">{account.roles.map(role => <i key={role}>{role === "expert" ? "Expert reviewer" : "Clinician"}</i>)}</span></span>
+          <span className="account-action">{account.id === "dual" && <b>Current demo</b>}Sign in →</span>
+        </button>)}
+      </div>
+      <footer><ShieldCheck size={15}/><span><strong>Prototype sign-in</strong> · Synthetic accounts only. No credentials or patient data are stored.</span></footer>
+    </section>
+  </main>;
+}
+
 function Shell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobile, setMobile] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [account, setAccount] = useState<MockAccount | null>(null);
   const [role, setRole] = useState<WorkspaceRole>("clinician");
+  if (!account) return <MockLogin onLogin={nextAccount => { setAccount(nextAccount); setRole(nextAccount.roles[0]); navigate("/"); }}/>;
   const activeNav = role === "expert" ? expertNav : clinicianNav;
   const switchRole = (nextRole: WorkspaceRole) => {
     setRole(nextRole);
@@ -88,10 +119,11 @@ function Shell() {
           <span className="top-product">ECG-QI</span>
           <label className="global-search"><Search size={17}/><input aria-label="Search by patient ID" placeholder="Search patient ID, e.g. 20841"/></label>
           <div className="top-actions">
-            <label className="role-switcher"><UserRound size={16}/><span className="sr-only">Active workspace</span><select aria-label="Active workspace" value={role} onChange={event=>switchRole(event.target.value as WorkspaceRole)}><option value="clinician">Clinician</option><option value="expert">Expert reviewer</option></select></label>
+            <label className={`role-switcher ${account.roles.length === 1 ? "single-role" : ""}`}><UserRound size={16}/><span className="sr-only">Active workspace</span><select aria-label="Active workspace" value={role} onChange={event=>switchRole(event.target.value as WorkspaceRole)}>{account.roles.includes("clinician") && <option value="clinician">Clinician</option>}{account.roles.includes("expert") && <option value="expert">Expert reviewer</option>}</select></label>
             <span className="online"><i/>AI Model Online</span>
             <button className="icon-button notification" aria-label="Notifications"><Bell size={19}/><i/></button>
-            <button className="user-menu"><span className="avatar">{role === "expert" ? "MC" : "AN"}</span><span><strong>{role === "expert" ? "Dr. Maya Chen" : "Dr. A. Nkemdirim"}</strong><small>{role === "expert" ? "Cardiology Expert · WRHN" : "Emergency Med. · WRHN"}</small></span><ChevronDown size={15}/></button>
+            <div className="user-menu"><span className="avatar">{account.initials}</span><span><strong>{account.name}</strong><small>{role === "expert" ? "Expert Reviewer · WRHN" : `${account.title.split(" · ")[0]} · WRHN`}</small></span></div>
+            <button className="icon-button logout-button" aria-label="Sign out" title="Sign out" onClick={() => { setAccount(null); setUploadOpen(false); setMobile(false); navigate("/"); }}><LogOut size={18}/></button>
           </div>
         </header>
         <main className="content">
@@ -101,7 +133,7 @@ function Shell() {
             <Route path="/cases/:id" element={<CaseDetail/>}/>
             <Route path="/review" element={role === "expert" ? <ReviewPage/> : <Navigate to="/" replace/>}/>
             <Route path="/learning" element={role === "clinician" ? <LearningPage/> : <Navigate to="/" replace/>}/>
-            <Route path="/analytics" element={<AnalyticsPage/>}/>
+            <Route path="/analytics" element={role === "expert" ? <AnalyticsPage/> : <Navigate to="/" replace/>}/>
             <Route path="/settings" element={<SettingsPage/>}/>
             <Route path="*" element={<Navigate to="/" replace/>}/>
           </Routes>
@@ -338,7 +370,7 @@ function InterpretationContent({ title, findings, note }: { title: string; findi
 }
 
 function ReviewPage() {
-  const [selected, setSelected] = useState<Case | null>(null);
+  const [selected, setSelected] = useState<{ caseItem: Case; completed: boolean } | null>(null);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const newReviewCase: Case = {
     ...cases[19],
@@ -351,25 +383,30 @@ function ReviewPage() {
     verdict: "major",
     elapsed: "Just now",
   };
-  const baseCompleted = cases.slice(7,11);
+  const severityRank: Record<Priority, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+  const sortBySeverity = (items: Case[]) => [...items].sort((a,b) => severityRank[b.priority] - severityRank[a.priority] || a.patientId.localeCompare(b.patientId));
+  const expertReviewedSeed = [
+    { ...cases[7], elapsed: "Reviewed 45 min ago" },
+    { ...cases[8], elapsed: "Reviewed 2.3 hr ago" },
+  ];
   const newlyCompleted = completedIds.map(id => id === newReviewCase.id ? newReviewCase : cases.find(c => c.id === id)).filter((c): c is Case => Boolean(c));
   const columns = [
-    { key: "waiting", title: "WAITING", tone: "amber", items: [newReviewCase, ...cases.slice(0,4)].filter(c => !completedIds.includes(c.id)) },
-    { key: "review", title: "UNDER REVIEW", tone: "blue", items: cases.slice(4,7).filter(c => !completedIds.includes(c.id)) },
-    { key: "complete", title: "COMPLETED", tone: "green", items: [...baseCompleted, ...newlyCompleted.filter(c => !baseCompleted.some(existing => existing.id === c.id))] },
+    { key: "pending", title: "YET TO REVIEW", tone: "amber", items: sortBySeverity([newReviewCase, ...cases.slice(0,7)].filter(c => !completedIds.includes(c.id))) },
+    { key: "complete", title: "EXPERT REVIEWED", tone: "green", items: sortBySeverity([...expertReviewedSeed, ...newlyCompleted.filter(c => !expertReviewedSeed.some(existing => existing.id === c.id))]) },
   ];
   return <>
-    <PageHeader title="Review Queue" subtitle="Expert cardiology review board" actions={<select aria-label="Department filter"><option>All Departments</option><option>Emergency</option><option>Cardiology</option></select>}/>
-    <div className="kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((c,i)=><button key={c.id} className={`case-card ${selected?.id === c.id ? "selected" : ""}`} onClick={()=>setSelected(c)}><div><span className="id-link">{c.patientId}</span><PriorityBadge priority={c.priority}/></div><p>Clinician: <strong>{c.clinicianDx}</strong></p><p>AI: <strong className="blue-text">{c.aiDx}</strong></p>{col.key==="complete"&&<p className="final">Final: {i%2?c.aiDx:c.clinicianDx}<CheckCircle2 size={15}/></p>}<footer><span><Clock3 size={14}/>{c.elapsed}</span>{col.key==="review"&&<b>{i%2?"Dr. Patel":"Dr. Chen"}</b>}</footer></button>)}</section>)}</div>
-    {selected && <ExpertReviewDrawer key={selected.id} caseItem={selected} onClose={()=>setSelected(null)} onSubmit={()=>setCompletedIds(ids => ids.includes(selected.id) ? ids : [...ids, selected.id])}/>}
+    <PageHeader title="Expert Review Queue" subtitle="Only cases escalated for expert adjudication · Highest severity first" actions={<select aria-label="Department filter"><option>All Departments</option><option>Emergency</option><option>Cardiology</option></select>}/>
+    <div className="review-scope-note"><ShieldCheck size={16}/><span>Clinician-only decisions and accepted AI suggestions are excluded. Completed means an expert submitted a final adjudication.</span></div>
+    <div className="kanban review-kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((c,i)=><button key={c.id} className={`case-card ${selected?.caseItem.id === c.id ? "selected" : ""}`} onClick={()=>setSelected({caseItem:c, completed:col.key === "complete"})}><div><span className="id-link">{c.patientId}</span><PriorityBadge priority={c.priority}/></div><p>Clinician: <strong>{c.clinicianDx}</strong></p><p>AI: <strong className="blue-text">{c.aiDx}</strong></p>{col.key==="complete"&&<p className="final">Expert final: {c.aiDx}<CheckCircle2 size={15}/></p>}<footer><span><Clock3 size={14}/>{c.elapsed}</span>{col.key==="complete"&&<b>{i%2 ? "Dr. Patel" : "Dr. Chen"}</b>}</footer></button>)}</section>)}</div>
+    {selected && <ExpertReviewDrawer key={selected.caseItem.id} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={()=>setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id])}/>}
   </>;
 }
 
-function ExpertReviewDrawer({ caseItem, onClose, onSubmit }: { caseItem: Case; onClose: () => void; onSubmit: () => void }) {
-  const [finalDx, setFinalDx] = useState("");
-  const [notes, setNotes] = useState("");
-  const [takeaway, setTakeaway] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: { caseItem: Case; onClose: () => void; onSubmit: () => void; completed?: boolean }) {
+  const [finalDx, setFinalDx] = useState(completed ? caseItem.aiDx : "");
+  const [notes, setNotes] = useState(completed ? "Expert adjudication completed after independent waveform review and comparison of the clinician and AI interpretations." : "");
+  const [takeaway, setTakeaway] = useState(completed ? "Review rhythm regularity and lead morphology before distinguishing closely related tachyarrhythmias." : "");
+  const [submitted, setSubmitted] = useState(completed);
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
     window.addEventListener("keydown", closeOnEscape);
@@ -386,7 +423,7 @@ function ExpertReviewDrawer({ caseItem, onClose, onSubmit }: { caseItem: Case; o
     <button className="review-drawer-scrim" onClick={onClose} aria-label="Close expert review"/>
     <aside className="expert-review-drawer" role="dialog" aria-modal="true" aria-labelledby="expert-review-title">
       <header><div><h2 id="expert-review-title">Expert Review</h2><span className="mono">{caseItem.patientId}</span></div><button onClick={onClose} aria-label="Close expert review"><X size={20}/></button></header>
-      {submitted ? <div className="expert-review-success"><span><CheckCircle2 size={36}/></span><h3>Expert review submitted</h3><p>The final diagnosis was recorded, the case moved to Completed, and the learning takeaway was sent to the clinician dashboard.</p><div><b>Final diagnosis</b><strong>{finalDx}</strong></div><button className="button primary" onClick={onClose}>Return to Review Queue</button></div> :
+      {submitted ? <div className="expert-review-success"><span><CheckCircle2 size={36}/></span><h3>{completed ? "Expert review completed" : "Expert review submitted"}</h3><p>{completed ? "This case was explicitly adjudicated by an expert reviewer. Clinician-only and AI-accepted cases never appear in this completed queue." : "The final diagnosis was recorded, the case moved to Expert Reviewed, and the learning takeaway was sent to the clinician dashboard."}</p><div><b>Final diagnosis</b><strong>{finalDx}</strong></div><button className="button primary" onClick={onClose}>Return to Review Queue</button></div> :
       <form onSubmit={submitReview}>
         <div className="expert-review-body">
           <div className="drawer-alert"><AlertTriangle size={17}/><div><strong>Major Discrepancy</strong><p>Clinical decision authority rests with the treating physician. AI is a second-reader tool only.</p></div></div>
