@@ -16,12 +16,21 @@ import { BrowserRouter, Link, MemoryRouter, Navigate, Route, Routes, useLocation
 import { aiPredictions, cases, discrepancyData, learningCases, personalTrend, trend12 } from "./data";
 import type { Case, Priority, Verdict } from "./types";
 
-const nav = [
+type WorkspaceRole = "clinician" | "expert";
+
+const clinicianNav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "ECG Cases", icon: HeartPulse },
-  { href: "/review", label: "Review Queue", icon: ClipboardList, badge: 18 },
   { href: "/learning", label: "Learning Dashboard", icon: GraduationCap },
   { href: "/analytics", label: "Analytics", icon: BarChart3, section: "REPORTS" },
+  { href: "/settings", label: "Settings", icon: Settings },
+];
+
+const expertNav = [
+  { href: "/", label: "Expert Overview", icon: LayoutDashboard },
+  { href: "/review", label: "Review Queue", icon: ClipboardList, badge: 19 },
+  { href: "/cases", label: "ECG Cases", icon: HeartPulse },
+  { href: "/analytics", label: "QI Analytics", icon: BarChart3, section: "REPORTS" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -41,15 +50,24 @@ function Logo({ compact = false }: { compact?: boolean }) {
 
 function Shell() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobile, setMobile] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [role, setRole] = useState<WorkspaceRole>("clinician");
+  const activeNav = role === "expert" ? expertNav : clinicianNav;
+  const switchRole = (nextRole: WorkspaceRole) => {
+    setRole(nextRole);
+    setUploadOpen(false);
+    setMobile(false);
+    navigate("/");
+  };
   return (
-    <div className="app-shell">
+    <div className={`app-shell role-${role}`}>
       <aside className={`sidebar ${mobile ? "open" : ""}`}>
         <div className="side-brand"><Logo /><span className="product-chip">ECG-QI</span><button className="mobile-close" onClick={() => setMobile(false)} aria-label="Close navigation"><X size={18}/></button></div>
         <nav aria-label="Main navigation">
-          <p className="nav-kicker">NAVIGATION</p>
-          {nav.map((item, i) => (
+          <p className="nav-kicker">{role === "expert" ? "EXPERT WORKSPACE" : "CLINICIAN WORKSPACE"}</p>
+          {activeNav.map((item) => (
             <div key={item.href}>
               {item.section && <p className="nav-kicker reports">{item.section}</p>}
               <Link onClick={() => setMobile(false)} className={`nav-item ${location.pathname === item.href || (item.href === "/cases" && location.pathname.startsWith("/cases")) ? "active" : ""}`} to={item.href}>
@@ -58,8 +76,8 @@ function Shell() {
             </div>
           ))}
         </nav>
-        <div className="side-note"><ShieldCheck size={16}/><span><strong>QI workspace</strong><small>De-identified data only</small></span></div>
-        <button onClick={() => setUploadOpen(true)} className="button primary upload-side"><Upload size={16}/>Upload ECG</button>
+        <div className="side-note"><ShieldCheck size={16}/><span><strong>{role === "expert" ? "Expert adjudication" : "Clinical QI workspace"}</strong><small>{role === "expert" ? "Cardiology review access" : "De-identified data only"}</small></span></div>
+        {role === "clinician" && <button onClick={() => setUploadOpen(true)} className="button primary upload-side"><Upload size={16}/>Upload ECG</button>}
       </aside>
       {mobile && <button aria-label="Close navigation overlay" className="overlay" onClick={() => setMobile(false)} />}
       <div className="main-area">
@@ -70,25 +88,26 @@ function Shell() {
           <span className="top-product">ECG-QI</span>
           <label className="global-search"><Search size={17}/><input aria-label="Search by patient ID" placeholder="Search patient ID, e.g. 20841"/></label>
           <div className="top-actions">
+            <label className="role-switcher"><UserRound size={16}/><span className="sr-only">Active workspace</span><select aria-label="Active workspace" value={role} onChange={event=>switchRole(event.target.value as WorkspaceRole)}><option value="clinician">Clinician</option><option value="expert">Expert reviewer</option></select></label>
             <span className="online"><i/>AI Model Online</span>
             <button className="icon-button notification" aria-label="Notifications"><Bell size={19}/><i/></button>
-            <button className="user-menu"><span className="avatar">AN</span><span><strong>Dr. A. Nkemdirim</strong><small>Emergency Med. · WRHN</small></span><ChevronDown size={15}/></button>
+            <button className="user-menu"><span className="avatar">{role === "expert" ? "MC" : "AN"}</span><span><strong>{role === "expert" ? "Dr. Maya Chen" : "Dr. A. Nkemdirim"}</strong><small>{role === "expert" ? "Cardiology Expert · WRHN" : "Emergency Med. · WRHN"}</small></span><ChevronDown size={15}/></button>
           </div>
         </header>
         <main className="content">
           <Routes>
-            <Route path="/" element={<Dashboard openUpload={() => setUploadOpen(true)}/>}/>
-            <Route path="/cases" element={<CasesPage openUpload={() => setUploadOpen(true)}/>}/>
+            <Route path="/" element={role === "expert" ? <ExpertDashboard/> : <Dashboard openUpload={() => setUploadOpen(true)}/>}/>
+            <Route path="/cases" element={<CasesPage openUpload={() => setUploadOpen(true)} canUpload={role === "clinician"}/>}/>
             <Route path="/cases/:id" element={<CaseDetail/>}/>
-            <Route path="/review" element={<ReviewPage/>}/>
-            <Route path="/learning" element={<LearningPage/>}/>
+            <Route path="/review" element={role === "expert" ? <ReviewPage/> : <Navigate to="/" replace/>}/>
+            <Route path="/learning" element={role === "clinician" ? <LearningPage/> : <Navigate to="/" replace/>}/>
             <Route path="/analytics" element={<AnalyticsPage/>}/>
             <Route path="/settings" element={<SettingsPage/>}/>
             <Route path="*" element={<Navigate to="/" replace/>}/>
           </Routes>
         </main>
       </div>
-      {uploadOpen && <UploadWorkflow onClose={() => setUploadOpen(false)}/>}
+      {role === "clinician" && uploadOpen && <UploadWorkflow onClose={() => setUploadOpen(false)}/>}
     </div>
   );
 }
@@ -227,6 +246,34 @@ function Dashboard({ openUpload }: { openUpload: () => void }) {
   </>;
 }
 
+function ExpertDashboard() {
+  const priorityCases = [
+    { ...cases[19], id:"case-wrhn-00482", patientId:"WRHN-00482", clinicianDx:"Sinus Tachycardia", aiDx:"Atrial Flutter with 2:1 Conduction", elapsed:"Just now", priority:"high" as const },
+    ...cases.filter(item => item.verdict === "major").slice(0,4),
+  ];
+  return <>
+    <PageHeader title="Expert Review Overview" subtitle="Cardiology adjudication workspace · High-priority discrepancies first" actions={<Link className="button primary" to="/review"><ClipboardList size={16}/>Open Review Queue</Link>}/>
+    <div className="role-context-banner"><span><Stethoscope size={18}/></span><div><strong>Expert reviewer view</strong><p>Focused on discrepancy adjudication, clinical feedback, and hospital-wide quality improvement. Upload and private learning tools are hidden.</p></div></div>
+    <div className="kpi-grid">
+      <KpiCard icon={ClipboardList} tone="amber" value="19" label="Awaiting Expert Review" delta="5 new" note="Across all departments"/>
+      <KpiCard icon={AlertTriangle} tone="red" value="6" label="High Priority" delta="2 urgent" note="Target response: ≤15 min"/>
+      <KpiCard icon={Clock3} tone="blue" value="18 min" label="Median Turnaround" delta="↓ 12%" note="Within service target"/>
+      <KpiCard icon={CheckCircle2} tone="green" value="42" label="Reviewed This Week" delta="↗ 8%" note="94% completed on time"/>
+    </div>
+    <div className="expert-dashboard-grid">
+      <Panel title="Priority Review Queue" subtitle="Cases ordered by clinical risk and elapsed time" action={<Link className="text-link" to="/review">View board →</Link>}>
+        <div className="expert-priority-list">{priorityCases.map((item,index)=><Link to="/review" key={item.id}><span className="queue-rank">{index + 1}</span><div><strong className="id-link">{item.patientId}</strong><p>{item.clinicianDx} <span>vs.</span> {item.aiDx}</p></div><PriorityBadge priority={item.priority}/><small><Clock3 size={13}/>{item.elapsed}</small></Link>)}</div>
+      </Panel>
+      <Panel title="Today’s Workload" subtitle="Expert review capacity by status">
+        <div className="workload-summary">
+          {[["Waiting",19,64,"amber"],["Under review",7,34,"blue"],["Completed",31,82,"green"]].map(([label,value,width,tone])=><div key={String(label)}><header><span>{label}</span><strong>{value}</strong></header><i><b className={String(tone)} style={{width:`${width}%`}}/></i></div>)}
+        </div>
+        <div className="expert-guardrail"><ShieldCheck size={18}/><div><strong>Clinical authority preserved</strong><p>Expert adjudications support quality improvement. Treating clinicians retain responsibility for patient care.</p></div></div>
+      </Panel>
+    </div>
+  </>;
+}
+
 function RecentTable({ rows, showDepartment = false }: { rows: Case[]; showDepartment?: boolean }) {
   return <Panel title={showDepartment ? "All ECG Cases" : "Recent Cases"} action={!showDepartment && <Link className="text-link" to="/cases">View all →</Link>} className="table-panel">
     <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Clinician Diagnosis</th><th>AI Diagnosis</th>{showDepartment && <th>Department</th>}<th>Status</th><th>Priority</th><th>Time</th></tr></thead>
@@ -234,13 +281,13 @@ function RecentTable({ rows, showDepartment = false }: { rows: Case[]; showDepar
   </Panel>;
 }
 
-function CasesPage({ openUpload }: { openUpload: () => void }) {
+function CasesPage({ openUpload, canUpload }: { openUpload: () => void; canUpload: boolean }) {
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState("All Departments");
   const [status, setStatus] = useState("All Statuses");
   const filtered = useMemo(() => cases.filter((c) => (!search || `${c.patientId} ${c.clinicianDx} ${c.aiDx}`.toLowerCase().includes(search.toLowerCase())) && (department === "All Departments" || c.department === department) && (status === "All Statuses" || c.verdict === status)), [search, department, status]);
   return <>
-    <PageHeader title="ECG Cases" subtitle="Anonymized cases across WRHN Cardiac Services" actions={<><button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button><button className="button secondary"><Filter size={15}/>Filter</button></>}/>
+    <PageHeader title="ECG Cases" subtitle="Anonymized cases across WRHN Cardiac Services" actions={<>{canUpload && <button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button>}<button className="button secondary"><Filter size={15}/>Filter</button></>}/>
     <div className="filter-bar card"><label><Search size={16}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search patient ID or diagnosis" aria-label="Search cases"/></label><select value={department} onChange={(e) => setDepartment(e.target.value)} aria-label="Filter by department"><option>All Departments</option>{["Emergency","Cardiology","ICU","Internal Medicine","Surgery"].map(x=><option key={x}>{x}</option>)}</select><select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status"><option>All Statuses</option><option value="concordant">Concordant</option><option value="minor">Minor discrepancy</option><option value="major">Major discrepancy</option></select><span>{filtered.length} cases</span></div>
     <RecentTable rows={filtered} showDepartment/>
   </>;
