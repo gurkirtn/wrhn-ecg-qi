@@ -170,7 +170,7 @@ function Shell() {
         </header>
         <main className="content">
           <Routes>
-            <Route path="/" element={role === "expert" ? <ExpertDashboard/> : <Dashboard submissions={myReviewSubmissions} openUpload={() => setUploadOpen(true)}/>}/>
+            <Route path="/" element={role === "expert" ? <ExpertDashboard submissions={reviewSubmissions}/> : <Dashboard submissions={myReviewSubmissions} openUpload={() => setUploadOpen(true)}/>}/>
             <Route path="/cases" element={<CasesPage role={role} submissions={role === "clinician" ? myReviewSubmissions : reviewSubmissions} openUpload={() => setUploadOpen(true)}/>}/>
             <Route path="/cases/:id" element={visibleCaseSubmission ? <CaseDetail submission={visibleCaseSubmission}/> : <Navigate to="/cases" replace/>}/>
             <Route path="/review" element={role === "expert" ? <ReviewPage submissions={reviewSubmissions} onReviewCompleted={completeExpertSubmission}/> : <Navigate to="/" replace/>}/>
@@ -326,27 +326,31 @@ function Dashboard({ openUpload, submissions }: { openUpload: () => void; submis
   </>;
 }
 
-function ExpertDashboard() {
-  const priorityCases = [
-    { ...cases[19], id:"case-wrhn-00482", patientId:"WRHN-00482", clinicianDx:"Sinus Tachycardia", aiDx:"Atrial Flutter with 2:1 Conduction", elapsed:"Just now", priority:"high" as const },
-    ...cases.filter(item => item.verdict === "major").slice(0,4),
-  ];
+function ExpertDashboard({ submissions }: { submissions: ClinicianReviewSubmission[] }) {
+  const severityRank: Record<Priority, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+  const submittedAwaiting = submissions.filter(item => item.status === "awaiting");
+  const genericAwaiting = cases.slice(0,7).filter(item => !submissions.some(submission => submission.caseItem.id === item.id));
+  const allAwaiting = [...submittedAwaiting.map(item => item.caseItem), ...genericAwaiting];
+  const priorityCases = [...allAwaiting].sort((a,b) => severityRank[b.priority] - severityRank[a.priority]).slice(0,5);
+  const reviewedCount = submissions.filter(item => item.status === "reviewed").length + 2;
+  const highPriorityCount = allAwaiting.filter(item => item.priority === "critical" || item.priority === "high").length;
   return <>
     <PageHeader title="Expert Review Overview" subtitle="Cardiology adjudication workspace · High-priority discrepancies first" actions={<Link className="button primary" to="/review"><ClipboardList size={16}/>Open Review Queue</Link>}/>
     <div className="role-context-banner"><span><Stethoscope size={18}/></span><div><strong>Expert reviewer view</strong><p>Focused on discrepancy adjudication, clinical feedback, and hospital-wide quality improvement. Upload and private learning tools are hidden.</p></div></div>
     <div className="kpi-grid">
-      <KpiCard icon={ClipboardList} tone="amber" value="19" label="Awaiting Expert Review" delta="5 new" note="Across all departments"/>
-      <KpiCard icon={AlertTriangle} tone="red" value="6" label="High Priority" delta="2 urgent" note="Target response: ≤15 min"/>
+      <KpiCard icon={ClipboardList} tone="amber" value={String(allAwaiting.length)} label="Awaiting Expert Review" delta={`${submittedAwaiting.length} new`} note="Matches the review queue"/>
+      <KpiCard icon={AlertTriangle} tone="red" value={String(highPriorityCount)} label="High Priority" delta="Risk sorted" note="Target response: ≤15 min"/>
       <KpiCard icon={Clock3} tone="blue" value="18 min" label="Median Turnaround" delta="↓ 12%" note="Within service target"/>
-      <KpiCard icon={CheckCircle2} tone="green" value="42" label="Reviewed This Week" delta="↗ 8%" note="94% completed on time"/>
+      <KpiCard icon={CheckCircle2} tone="green" value={String(reviewedCount)} label="Expert Reviewed" delta="Completed" note="Matches the review queue"/>
     </div>
     <div className="expert-dashboard-grid">
       <Panel title="Priority Review Queue" subtitle="Cases ordered by clinical risk and elapsed time" action={<Link className="text-link" to="/review">View board →</Link>}>
         <div className="expert-priority-list">{priorityCases.map((item,index)=><Link to="/review" key={item.id}><span className="queue-rank">{index + 1}</span><div><strong className="id-link">{item.patientId}</strong><p>{item.clinicianDx} <span>vs.</span> {item.aiDx}</p></div><PriorityBadge priority={item.priority}/><small><Clock3 size={13}/>{item.elapsed}</small></Link>)}</div>
       </Panel>
-      <Panel title="Today’s Workload" subtitle="Expert review capacity by status">
-        <div className="workload-summary">
-          {[["Waiting",19,64,"amber"],["Under review",7,34,"blue"],["Completed",31,82,"green"]].map(([label,value,width,tone])=><div key={String(label)}><header><span>{label}</span><strong>{value}</strong></header><i><b className={String(tone)} style={{width:`${width}%`}}/></i></div>)}
+      <Panel title="Today’s Workload" subtitle="Same two states as the expert review queue">
+        <div className="expert-workload-grid">
+          <Link to="/review" className="awaiting"><span><Clock3 size={19}/></span><small>YET TO REVIEW</small><strong>{allAwaiting.length}</strong><p>Severity ordered · {highPriorityCount} high priority</p><b>Open queue →</b></Link>
+          <Link to="/review" className="reviewed"><span><CheckCircle2 size={19}/></span><small>EXPERT REVIEWED</small><strong>{reviewedCount}</strong><p>Completed adjudications and feedback</p><b>View completed →</b></Link>
         </div>
         <div className="expert-guardrail"><ShieldCheck size={18}/><div><strong>Clinical authority preserved</strong><p>Expert adjudications support quality improvement. Treating clinicians retain responsibility for patient care.</p></div></div>
       </Panel>

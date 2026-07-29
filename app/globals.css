@@ -196,8 +196,18 @@ tbody tr:hover{background:#152741}
 .workload-summary i b.amber{background:#F6A723}.workload-summary i b.blue{background:#4F8CFF}.workload-summary i b.green{background:#36D977}
 .expert-guardrail{display:flex;gap:10px;margin:18px;padding:14px;border:1px solid #4A3D75;background:#1B1932;border-radius:10px;color:#BCAAF0}
 .expert-guardrail svg{flex:none}.expert-guardrail p{color:#9FAAC1;line-height:1.5;margin:5px 0 0}
+.expert-workload-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:18px 18px 2px}
+.expert-workload-grid>a{display:grid;grid-template-columns:34px 1fr;align-items:center;gap:5px 9px;padding:14px;border:1px solid #33445B;border-radius:10px;background:#101D2F;transition:border-color .15s,transform .15s}
+.expert-workload-grid>a:hover{transform:translateY(-1px);border-color:#5B82BB}
+.expert-workload-grid>a>span{grid-row:1/3;width:34px;height:34px;display:grid;place-items:center;border-radius:9px}
+.expert-workload-grid>a.awaiting>span{background:#382A10;color:#F7C969}.expert-workload-grid>a.reviewed>span{background:#0B3023;color:#73E4A2}
+.expert-workload-grid small{font-size:8px;font-weight:900;letter-spacing:.07em;color:#8FA3BB}
+.expert-workload-grid strong{grid-column:1/-1;font-size:30px;color:#F1F5FA;margin-top:7px}
+.expert-workload-grid p{grid-column:1/-1;margin:0;color:#91A3BB;font-size:10px;line-height:1.4}
+.expert-workload-grid>a>b{grid-column:1/-1;margin-top:5px;color:#85B5FA;font-size:10px}
 @media(max-width:1080px){.role-switcher span,.role-switcher svg{display:none}.expert-dashboard-grid{grid-template-columns:1fr}}
 @media(max-width:680px){.role-switcher{padding:0 5px}.role-switcher select{max-width:112px}.expert-priority-list>a{grid-template-columns:26px minmax(0,1fr) auto}.expert-priority-list>a>small{display:none}.role-context-banner{align-items:flex-start}}
+@media(max-width:430px){.expert-workload-grid{grid-template-columns:1fr}}
 
 /* Mock authentication and role-scoped expert review */
 .mock-login{min-height:100vh;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 18% 15%,rgba(38,93,173,.3),transparent 34%),radial-gradient(circle at 82% 82%,rgba(99,65,171,.2),transparent 30%),#07111F;color:#E8F0FA}
