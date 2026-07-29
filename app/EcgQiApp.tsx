@@ -38,6 +38,21 @@ type ClinicianReviewSubmission = {
   finalDx?: string;
   expertNotes?: string;
   takeaway?: string;
+  ageRange?: string;
+  sexLabel?: string;
+  reason?: string;
+  matchRating?: number;
+  aiConfidence?: number;
+  aiFeatures?: string[];
+};
+type UploadSubmissionDraft = {
+  caseItem: Case;
+  ageRange: string;
+  sexLabel: string;
+  reason: string;
+  matchRating: number;
+  aiConfidence: number;
+  aiFeatures: string[];
 };
 
 const clinicianNav = [
@@ -64,6 +79,14 @@ const mockAccounts: MockAccount[] = [
   { id: "clinician", name: "Dr. Elena Rossi", initials: "ER", email: "clinician@wrhn.demo", title: "Emergency Medicine", roles: ["clinician"] },
   { id: "expert", name: "Dr. Maya Chen", initials: "MC", email: "expert@wrhn.demo", title: "Cardiology Expert", roles: ["expert"] },
   { id: "dual", name: "Dr. A. Nkemdirim", initials: "AN", email: "adaeze@wrhn.demo", title: "Emergency Medicine · Expert Reviewer", roles: ["clinician", "expert"] },
+];
+const mockAiProfiles = [
+  { diagnosis: "Atrial Flutter with 2:1 Conduction", features: ["Regular atrial activity near 300 bpm", "2:1 AV conduction pattern", "Narrow-complex ventricular response"], explanation: "Regular atrial activity and a fixed ventricular response favor atrial flutter with 2:1 conduction." },
+  { diagnosis: "Atrial Fibrillation with RVR", features: ["Irregularly irregular RR intervals", "No consistent P waves", "Rapid ventricular response"], explanation: "Beat-to-beat RR variability without organized atrial activity supports atrial fibrillation with rapid ventricular response." },
+  { diagnosis: "1st Degree AV Block", features: ["Sinus rhythm present", "PR interval exceeds 200 ms", "Stable narrow QRS complexes"], explanation: "A consistently prolonged PR interval with preserved 1:1 conduction supports first-degree AV block." },
+  { diagnosis: "Left Bundle Branch Block", features: ["QRS duration above 120 ms", "Broad notched lateral R waves", "Discordant ST-T changes"], explanation: "Broad QRS morphology with lateral notching and secondary repolarization changes supports left bundle branch block." },
+  { diagnosis: "Posterior Myocardial Infarction", features: ["ST depression in V1–V3", "Tall anterior R waves", "Posterior injury pattern suspected"], explanation: "Reciprocal anterior changes with tall R waves raise concern for posterior myocardial infarction." },
+  { diagnosis: "Normal Sinus Rhythm", features: ["Regular sinus P waves", "Normal PR and QRS intervals", "No acute ST-segment deviation"], explanation: "Organized atrial activation with normal intervals and no acute ischemic changes supports normal sinus rhythm." },
 ];
 const mockEscalatedCase: Case = {
   ...cases[19],
@@ -119,7 +142,11 @@ function Shell() {
   const [reviewSubmissions, setReviewSubmissions] = useState<ClinicianReviewSubmission[]>(seededClinicianSubmissions);
   if (!account) return <MockLogin onLogin={nextAccount => { setAccount(nextAccount); setRole(nextAccount.roles[0]); navigate("/"); }}/>;
   const myReviewSubmissions = reviewSubmissions.filter(item => item.ownerId === account.id);
-  const addExpertSubmission = (caseItem: Case) => setReviewSubmissions(items => items.some(item => item.ownerId === account.id && item.caseItem.id === caseItem.id) ? items : [{ id: `submission-${account.id}-${caseItem.id}`, ownerId: account.id, caseItem, status: "awaiting", submittedAt: "Just now", submittedSort: Date.now() }, ...items]);
+  const addExpertSubmission = (draft: UploadSubmissionDraft) => {
+    if (reviewSubmissions.some(item => item.caseItem.patientId.toLowerCase() === draft.caseItem.patientId.toLowerCase())) return false;
+    setReviewSubmissions(items => [{ id: `submission-${account.id}-${draft.caseItem.id}`, ownerId: account.id, ...draft, status: "awaiting", submittedAt: "Just now", submittedSort: Date.now() }, ...items]);
+    return true;
+  };
   const completeExpertSubmission = (caseId: string, finalDx: string, takeaway: string, expertNotes: string) => setReviewSubmissions(items => {
     const reviewedAt = Date.now();
     if (items.some(item => item.caseItem.id === caseId)) return items.map(item => item.caseItem.id === caseId ? { ...item, status: "reviewed", reviewedAt: "Just now", reviewedSort: reviewedAt, expertName: account.name, finalDx, takeaway, expertNotes } : item);
@@ -182,20 +209,34 @@ function Shell() {
           </Routes>
         </main>
       </div>
-      {role === "clinician" && uploadOpen && <UploadWorkflow accountName={account.name} onExpertSubmit={addExpertSubmission} onClose={() => setUploadOpen(false)}/>}
+      {role === "clinician" && uploadOpen && <UploadWorkflow existingPatientIds={reviewSubmissions.map(item => item.caseItem.patientId)} accountName={account.name} onExpertSubmit={addExpertSubmission} onClose={() => setUploadOpen(false)}/>}
     </div>
   );
 }
 
-function UploadWorkflow({ onClose, onExpertSubmit, accountName }: { onClose: () => void; onExpertSubmit: (caseItem: Case) => void; accountName: string }) {
+function UploadWorkflow({ onClose, onExpertSubmit, accountName, existingPatientIds }: { onClose: () => void; onExpertSubmit: (draft: UploadSubmissionDraft) => boolean; accountName: string; existingPatientIds: string[] }) {
   const navigate = useNavigate();
   const [mockSeed, setMockSeed] = useState(0);
   const [step, setStep] = useState(1);
   const [fileName, setFileName] = useState("");
+  const [patientId, setPatientId] = useState("WRHN-00527");
+  const [ageRange, setAgeRange] = useState("65-74");
+  const [sex, setSex] = useState("Male");
+  const [department, setDepartment] = useState("Emergency");
+  const [reason, setReason] = useState("Palpitations and lightheadedness, new onset");
   const [confidence, setConfidence] = useState(72);
   const [diagnosis, setDiagnosis] = useState("Sinus Tachycardia");
+  const [rhythm, setRhythm] = useState("Regular");
+  const [ventricularRate, setVentricularRate] = useState("148");
   const [processIndex, setProcessIndex] = useState(0);
   const [outcome, setOutcome] = useState<"accepted" | "maintained" | "expert">("expert");
+  const normalizedPatientId = patientId.trim().toUpperCase();
+  const duplicatePatientId = existingPatientIds.some(value => value.toUpperCase() === normalizedPatientId);
+  const caseHash = [...`${normalizedPatientId}-${mockSeed}`].reduce((total,character) => total + character.charCodeAt(0), 0);
+  const aiProfile = mockAiProfiles[caseHash % mockAiProfiles.length];
+  const aiConfidence = 78 + caseHash % 19;
+  const matchRating = diagnosis === aiProfile.diagnosis ? 93 + caseHash % 7 : 34 + caseHash % 48;
+  const priority: Priority = matchRating < 48 ? "critical" : matchRating < 68 ? "high" : matchRating < 82 ? "medium" : "low";
   const stages = [
     ["Image Quality Validation", "Checking lead placement, noise, and signal clarity"],
     ["Waveform Segmentation", "Identifying P, QRS, and T boundaries across all 12 leads"],
@@ -219,7 +260,32 @@ function UploadWorkflow({ onClose, onExpertSubmit, accountName }: { onClose: () 
   }, [step]);
   const finish = (choice: "accepted" | "maintained" | "expert") => {
     setOutcome(choice);
-    if (choice === "expert") onExpertSubmit({ ...mockEscalatedCase, clinicianDx: diagnosis });
+    if (choice === "expert") {
+      const safeId = normalizedPatientId.replace(/[^A-Z0-9]+/g,"-").replace(/^-|-$/g,"").toLowerCase();
+      const ageStart = Number(ageRange.match(/\d+/)?.[0] || 65);
+      const caseItem: Case = {
+        ...mockEscalatedCase,
+        id: `case-${safeId}`,
+        patientId: normalizedPatientId,
+        age: ageStart,
+        sex: sex === "Female" ? "Female" : "Male",
+        department,
+        chiefComplaint: reason,
+        hrAtAcquisition: Number(ventricularRate) || 0,
+        encounter: `ENC-${100000 + caseHash}`,
+        acquiredAt: "Jul 29, 2026 · Just now",
+        waveform: `mock-waveform-${mockSeed + 1}`,
+        priority,
+        clinicianDx: diagnosis,
+        aiDx: aiProfile.diagnosis,
+        verdict: diagnosis === aiProfile.diagnosis ? "concordant" : matchRating >= 68 ? "minor" : "major",
+        elapsed: "Just now",
+      };
+      if (!onExpertSubmit({ caseItem, ageRange, sexLabel: sex, reason, matchRating, aiConfidence, aiFeatures: aiProfile.features })) {
+        setStep(1);
+        return;
+      }
+    }
     setStep(5);
   };
   const loadRandomMockEcg = () => {
@@ -241,29 +307,29 @@ function UploadWorkflow({ onClose, onExpertSubmit, accountName }: { onClose: () 
         {step === 1 && <div className="upload-step">
           <div className="privacy-warning"><AlertTriangle size={18}/><div><strong>Privacy Requirement</strong><p>Do not enter patient names, dates of birth, MRN, or identifying information. Use anonymized patient IDs only. All uploads are audit-logged.</p></div></div>
           <div className="upload-columns">
-            <div className="workflow-form"><h3>Anonymized Patient Information</h3><label>Anonymized Patient ID *<input defaultValue="WRHN-00482" className="mono"/></label><div className="form-pair"><label>Age Range<select defaultValue="65-74"><option>18-34</option><option>35-49</option><option>50-64</option><option>65-74</option><option>75+</option></select></label><label>Sex<select defaultValue="Male"><option>Female</option><option>Male</option><option>Other / not specified</option></select></label></div><label>Department<select defaultValue="Emergency"><option>Emergency</option><option>Cardiology</option><option>ICU</option><option>Internal Medicine</option></select></label><label>Reason for ECG<textarea defaultValue="Palpitations and lightheadedness, new onset"/></label></div>
+            <div className="workflow-form"><h3>Anonymized Patient Information</h3><label>Anonymized Patient ID *<input value={patientId} onChange={event=>setPatientId(event.target.value)} className={`mono ${duplicatePatientId ? "input-error" : ""}`}/>{duplicatePatientId && <span className="field-error">This patient ID is already in the program. Enter a unique anonymized ID.</span>}</label><div className="form-pair"><label>Age Range<select value={ageRange} onChange={event=>setAgeRange(event.target.value)}><option>18-34</option><option>35-49</option><option>50-64</option><option>65-74</option><option>75+</option></select></label><label>Sex<select value={sex} onChange={event=>setSex(event.target.value)}><option>Female</option><option>Male</option><option>Other / not specified</option></select></label></div><label>Department<select value={department} onChange={event=>setDepartment(event.target.value)}><option>Emergency</option><option>Cardiology</option><option>ICU</option><option>Internal Medicine</option></select></label><label>Reason for ECG<textarea value={reason} onChange={event=>setReason(event.target.value)}/></label></div>
             <div><h3>ECG File Upload</h3><button type="button" className={`dropzone mock-dropzone ${fileName ? "has-file" : ""}`} onClick={loadRandomMockEcg}>{fileName ? <><div className="mock-ecg-preview"><EcgStrip lead={`MOCK ${mockSeed + 1}`} phase={mockSeed * 4}/></div><strong>{fileName}</strong><span>Random anonymized placeholder ready for the mock model</span></> : <><Upload size={34}/><strong>Click to upload ECG</strong><span>A random anonymized ECG placeholder will be loaded</span></>}</button><div className="mock-mode-note"><BrainCircuit size={14}/>Prototype mode · no patient file is uploaded</div>{fileName && <button className="demo-file" onClick={loadRandomMockEcg}>↻ Load a different random ECG</button>}</div>
           </div>
         </div>}
         {step === 2 && <div className="clinician-step">
-          <div className="workflow-section-title"><span className="soft-icon"><Stethoscope size={20}/></span><div><h3>Clinician Interpretation</h3><p>Dr. A. Nkemdirim · Emergency Medicine · Dec 18, 2024 10:02</p></div><span className="anonymized mono">WRHN-00482</span></div>
+          <div className="workflow-section-title"><span className="soft-icon"><Stethoscope size={20}/></span><div><h3>Clinician Interpretation</h3><p>{accountName} · {department} · Jul 29, 2026</p></div><span className="anonymized mono">{normalizedPatientId}</span></div>
           <WorkflowEcg compact seed={mockSeed}/>
-          <div className="clinician-form-grid"><div><label>Primary Diagnosis *<select value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)}><option>Sinus Tachycardia</option><option>Atrial Fibrillation</option><option>Atrial Flutter</option><option>Normal Sinus Rhythm</option><option>STEMI</option></select></label><div className="form-pair"><label>Rhythm<select defaultValue="Regular"><option>Regular</option><option>Irregular</option><option>Irregularly irregular</option></select></label><label>Ventricular Rate<div className="suffix-input"><input defaultValue="148"/><span>bpm</span></div></label></div><label>Clinical Confidence: <b>{confidence}%</b><input type="range" min="0" max="100" value={confidence} onChange={(e) => setConfidence(Number(e.target.value))}/><div className="range-labels"><span>Uncertain</span><span>Confident</span></div></label></div><div><label>Key Findings<textarea defaultValue="Rapid ventricular rate. No obvious P wave abnormalities. QRS complexes appear narrow and regular. No ST segment changes noted."/></label><label>Clinical Notes<textarea defaultValue="Patient presented with acute palpitations. Vitals stable. ECG ordered on arrival to ED."/></label></div></div>
+          <div className="clinician-form-grid"><div><label>Primary Diagnosis *<select value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)}><option>Sinus Tachycardia</option><option>Atrial Fibrillation with RVR</option><option>Atrial Flutter with 2:1 Conduction</option><option>1st Degree AV Block</option><option>Left Bundle Branch Block</option><option>Posterior Myocardial Infarction</option><option>Normal Sinus Rhythm</option><option>STEMI</option></select></label><div className="form-pair"><label>Rhythm<select value={rhythm} onChange={event=>setRhythm(event.target.value)}><option>Regular</option><option>Irregular</option><option>Irregularly irregular</option></select></label><label>Ventricular Rate<div className="suffix-input"><input value={ventricularRate} onChange={event=>setVentricularRate(event.target.value)}/><span>bpm</span></div></label></div><label>Clinical Confidence: <b>{confidence}%</b><input type="range" min="0" max="100" value={confidence} onChange={(e) => setConfidence(Number(e.target.value))}/><div className="range-labels"><span>Uncertain</span><span>Confident</span></div></label></div><div><label>Key Findings<textarea defaultValue={`${rhythm} rhythm at ${ventricularRate} bpm. QRS morphology and ST segments reviewed.`}/></label><label>Clinical Notes<textarea defaultValue={`${reason}. ECG acquired in ${department}.`}/></label></div></div>
           <div className="independence-note"><ShieldCheck size={16}/>Your interpretation is recorded before the AI second read is revealed.</div>
         </div>}
-        {step === 3 && <div className="processing-step"><span className="processing-ring"><BrainCircuit size={32}/></span><h3>AI Processing ECG...</h3><p>ECG-AI v2.4 · WRHN-00482 · Simulated prototype analysis</p><div className="processing-list">{stages.map(([title, text], index) => <div className={`${index < processIndex ? "done" : ""} ${index === processIndex ? "running" : ""}`} key={title}><span>{index < processIndex ? <Check size={17}/> : index + 1}</span><div><strong>{title}</strong><small>{text}</small></div><b>{index < processIndex ? "Done" : index === processIndex ? "Running" : ""}</b></div>)}</div><p className="decision-note centered"><ShieldCheck size={14}/>This simulated AI output is decision support, not a diagnosis.</p></div>}
+        {step === 3 && <div className="processing-step"><span className="processing-ring"><BrainCircuit size={32}/></span><h3>AI Processing ECG...</h3><p>ECG-AI v2.4 · {normalizedPatientId} · Simulated prototype analysis</p><div className="processing-list">{stages.map(([title, text], index) => <div className={`${index < processIndex ? "done" : ""} ${index === processIndex ? "running" : ""}`} key={title}><span>{index < processIndex ? <Check size={17}/> : index + 1}</span><div><strong>{title}</strong><small>{text}</small></div><b>{index < processIndex ? "Done" : index === processIndex ? "Running" : ""}</b></div>)}</div><p className="decision-note centered"><ShieldCheck size={14}/>This simulated AI output is decision support, not a diagnosis.</p></div>}
         {step === 4 && <div className="comparison-step">
-          <div className="discrepancy-alert"><AlertTriangle size={22}/><div><strong>Major Discrepancy — High Priority</strong><p>Clinician: <b>{diagnosis}</b> · AI: <b>Atrial Flutter with 2:1 Conduction</b> · AI Confidence: <b>91%</b></p></div><PriorityBadge priority="high"/></div>
-          <div className="case-summary">{[["Patient ID","WRHN-00482"],["Age Range","65-74"],["Sex","Male"],["Department","Emergency"],["ECG Acquired","Dec 18, 2024 · 09:42"],["Reason","Palpitations, lightheadedness"]].map(([label,value]) => <div key={label}><span>{label}</span><b className={label==="Patient ID"?"mono id-link":""}>{value}</b></div>)}</div>
-          <p className="waveform-caption"><Activity size={16}/>ECG Waveform — simulated flutter pattern highlighted</p><WorkflowEcg seed={mockSeed}/>
+          <div className="discrepancy-alert"><AlertTriangle size={22}/><div><strong>AI Comparison — {matchRating}% Match</strong><p>Clinician: <b>{diagnosis}</b> · AI: <b>{aiProfile.diagnosis}</b> · AI Confidence: <b>{aiConfidence}%</b></p></div><PriorityBadge priority={priority}/></div>
+          <div className="case-summary">{[["Patient ID",normalizedPatientId],["Age Range",ageRange],["Sex",sex],["Department",department],["AI/Clinician Match",`${matchRating}%`],["Reason",reason]].map(([label,value]) => <div key={label}><span>{label}</span><b className={label==="Patient ID"?"mono id-link":""}>{value}</b></div>)}</div>
+          <p className="waveform-caption"><Activity size={16}/>ECG Waveform — mock case-specific analysis</p><WorkflowEcg seed={mockSeed}/>
           <div className="comparison-grid"><div className="comparison-card"><header><Stethoscope size={18}/><strong>Clinician Interpretation</strong><span>Dr. A. Nkemdirim</span></header><div><span>DIAGNOSIS</span><h3>{diagnosis}</h3><div className="comparison-confidence"><span>CONFIDENCE</span><i><b style={{width:`${confidence}%`}}/></i><strong>{confidence}%</strong></div><span>FINDINGS</span><ul><li>Rapid ventricular rate ~148 bpm</li><li>Regular rhythm</li><li>No visible P-wave abnormalities</li><li>No ST changes noted</li></ul><p className="quote-note">“Rapid rate consistent with sinus tachycardia in the context of acute presentation.”</p></div></div>
-            <div className="comparison-card ai"><header><Zap size={18}/><strong>AI Interpretation</strong><span>ECG-AI v2.4 · 99ms</span></header><div><div className="ai-title"><div><span>DIAGNOSIS</span><h3>Atrial Flutter with 2:1 Conduction</h3></div><strong>91%</strong></div><span>DETECTED FEATURES</span><ul><li>Sawtooth flutter waves at ~300 bpm</li><li>Regular RR intervals (~400ms)</li><li>2:1 AV conduction pattern confirmed</li><li>No delta waves — excludes WPW</li></ul><p className="explainer">Regular sawtooth flutter waves at ~300 bpm with 2:1 block produce a ventricular rate near 150 bpm that can mimic sinus tachycardia. RR regularity and inferior-lead morphology support clinical reassessment.</p><p className="decision-note"><AlertTriangle size={14}/><b>Note:</b> AI is a quality-improvement second reader. Final clinical decisions rest with the treating physician.</p></div></div>
+            <div className="comparison-card ai"><header><Zap size={18}/><strong>AI Interpretation</strong><span>ECG-AI v2.4 · case-specific mock</span></header><div><div className="ai-title"><div><span>DIAGNOSIS</span><h3>{aiProfile.diagnosis}</h3></div><strong>{aiConfidence}%</strong></div><div className="match-rating"><span>CLINICIAN / AI MATCH</span><i><b style={{width:`${matchRating}%`}}/></i><strong>{matchRating}%</strong></div><span>DETECTED FEATURES</span><ul>{aiProfile.features.map(feature=><li key={feature}>{feature}</li>)}</ul><p className="explainer">{aiProfile.explanation}</p><p className="decision-note"><AlertTriangle size={14}/><b>Note:</b> AI is a quality-improvement second reader. Final clinical decisions rest with the treating physician.</p></div></div>
           </div>
         </div>}
-        {step === 5 && <div className="completion-step"><span className="completion-icon">{outcome === "expert" ? <Sparkles size={35}/> : <CheckCircle2 size={35}/>}</span><h3>{outcome === "expert" ? "Sent to Expert Review" : "Comparison Decision Recorded"}</h3><p>{outcome === "expert" ? "WRHN-00482 has been added to the high-priority cardiology review queue. The clinician interpretation remains unchanged until adjudication." : outcome === "accepted" ? "The AI suggestion was accepted as the working comparison result. The treating clinician remains responsible for final care decisions." : "The clinician interpretation was maintained and the disagreement was documented for quality-improvement follow-up."}</p><div className="completion-summary"><span><b>Case</b><strong className="mono">WRHN-00482</strong></span><span><b>Status</b><strong>{outcome === "expert" ? "Waiting for expert review" : "Decision recorded"}</strong></span><span><b>Privacy</b><strong>Anonymized</strong></span></div><div className="guardrail"><ShieldCheck size={18}/><span><strong>Audit trail updated</strong>All workflow actions are simulated locally for this prototype.</span></div></div>}
+        {step === 5 && <div className="completion-step"><span className="completion-icon">{outcome === "expert" ? <Sparkles size={35}/> : <CheckCircle2 size={35}/>}</span><h3>{outcome === "expert" ? "Sent to Expert Review" : "Comparison Decision Recorded"}</h3><p>{outcome === "expert" ? `${normalizedPatientId} has been added to your Under Expert Review cases and the expert queue with a unique ${matchRating}% match rating.` : outcome === "accepted" ? "The AI suggestion was accepted as the working comparison result. The treating clinician remains responsible for final care decisions." : "The clinician interpretation was maintained and the disagreement was documented for quality-improvement follow-up."}</p><div className="completion-summary"><span><b>Case</b><strong className="mono">{normalizedPatientId}</strong></span><span><b>Status</b><strong>{outcome === "expert" ? "Waiting for expert review" : "Decision recorded"}</strong></span><span><b>Match</b><strong>{matchRating}%</strong></span></div><div className="guardrail"><ShieldCheck size={18}/><span><strong>Audit trail updated</strong>All workflow actions are simulated locally for this prototype.</span></div></div>}
       </div>
       <footer className="workflow-footer">
-        {step === 1 && <><span/><button className="button primary" disabled={!fileName} onClick={() => setStep(2)}>Continue to Clinician Interpretation <ChevronDown className="chevron-right" size={16}/></button></>}
+        {step === 1 && <><span/><button className="button primary" disabled={!fileName || !normalizedPatientId || duplicatePatientId || !reason.trim()} onClick={() => setStep(2)}>Continue to Clinician Interpretation <ChevronDown className="chevron-right" size={16}/></button></>}
         {step === 2 && <><button className="button ghost" onClick={() => setStep(1)}>‹ Back</button><div><button className="button secondary">Save Draft</button><button className="button primary" onClick={() => setStep(3)}><Zap size={16}/>Submit for AI Analysis</button></div></>}
         {step === 3 && <><span/><button className="button secondary" onClick={() => setStep(2)}>Cancel processing</button></>}
         {step === 4 && <><button className="button ghost" onClick={() => setStep(2)}>‹ Back</button><div><button className="button secondary decision" onClick={() => finish("accepted")}><Check size={16}/>Accept AI Suggestion</button><button className="button secondary decision" onClick={() => finish("maintained")}><Stethoscope size={16}/>Maintain Clinician Interpretation</button><button className="button primary decision" onClick={() => finish("expert")}><Sparkles size={16}/>Send to Expert Review</button></div></>}
@@ -367,8 +433,8 @@ function ClinicianRecentCases({ submissions }: { submissions: ClinicianReviewSub
 }
 
 function ReviewedSubmissionTable({ items, expertView = false }: { items: ClinicianReviewSubmission[]; expertView?: boolean }) {
-  return <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Clinician Input</th><th>AI Reading</th><th>Expert Final</th>{expertView && <th>Department</th>}<th>Reviewed</th></tr></thead>
-    <tbody>{items.map(item => <tr key={item.id}><td><Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link></td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td><span className="review-state reviewed"><CheckCircle2 size={13}/>{item.finalDx}</span></td>{expertView && <td>{item.caseItem.department}</td>}<td>{item.reviewedAt}</td></tr>)}</tbody></table></div>;
+  return <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Clinician Input</th><th>AI Reading</th><th>Match</th><th>Expert Final</th>{expertView && <th>Department</th>}<th>Reviewed</th></tr></thead>
+    <tbody>{items.map(item => <tr key={item.id}><td><Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link></td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td><strong>{item.matchRating ?? "—"}{item.matchRating !== undefined && "%"}</strong></td><td><span className="review-state reviewed"><CheckCircle2 size={13}/>{item.finalDx}</span></td>{expertView && <td>{item.caseItem.department}</td>}<td>{item.reviewedAt}</td></tr>)}</tbody></table></div>;
 }
 
 function CasesPage({ openUpload, role, submissions }: { openUpload: () => void; role: WorkspaceRole; submissions: ClinicianReviewSubmission[] }) {
@@ -383,7 +449,7 @@ function CasesPage({ openUpload, role, submissions }: { openUpload: () => void; 
     <PageHeader title="My ECG Cases" subtitle="Your submissions only · Ordered by latest activity" actions={<button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button>}/>
     <div className="case-section-stack">
       <Panel title="Under Expert Review" subtitle="Your latest submissions awaiting adjudication" action={<span className="count-chip amber">{awaiting.length}</span>}>
-        <div className="pending-case-grid">{awaiting.map(item => <article className="pending-case" key={item.id}><header><span className="mono">{item.caseItem.patientId}</span><PriorityBadge priority={item.caseItem.priority}/></header><div><span>YOUR INPUT<strong>{item.caseItem.clinicianDx}</strong></span><span>AI READING<strong>{item.caseItem.aiDx}</strong></span></div><footer><span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span><time>{item.submittedAt}</time></footer></article>)}</div>
+        <div className="pending-case-grid">{awaiting.map(item => <article className="pending-case" key={item.id}><header><span className="mono">{item.caseItem.patientId}</span><PriorityBadge priority={item.caseItem.priority}/></header><div><span>YOUR INPUT<strong>{item.caseItem.clinicianDx}</strong></span><span>AI READING<strong>{item.caseItem.aiDx}</strong></span><span>MATCH RATING<strong>{item.matchRating ?? "—"}{item.matchRating !== undefined && "%"}</strong></span><span>PATIENT CONTEXT<strong>{item.ageRange || `${item.caseItem.age} years`} · {item.sexLabel || item.caseItem.sex} · {item.caseItem.department}</strong></span></div>{item.reason && <p className="pending-reason"><b>Reason:</b> {item.reason}</p>}<footer><span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span><time>{item.submittedAt}</time></footer></article>)}</div>
         {awaiting.length === 0 && <div className="empty-review-column"><CheckCircle2 size={25}/><strong>No cases under review</strong><p>New expert-review submissions will appear here.</p></div>}
       </Panel>
       <Panel title="Reviewed Cases" subtitle="Expert feedback and teaching points · Most recently reviewed first" action={<span className="count-chip green">{reviewed.length}</span>} className="table-panel">
@@ -413,7 +479,7 @@ function CaseDetail({ submission }: { submission: ClinicianReviewSubmission }) {
     <div className="detail-title"><div className="breadcrumbs"><Link to="/cases">Reviewed ECG Cases</Link><span>›</span><b>{selected.patientId}</b><PriorityBadge priority={selected.priority}/><span className="reviewed-banner"><CheckCircle2 size={16}/>Expert reviewed {submission.reviewedAt}</span></div></div>
     <div className="case-record-banner"><ShieldCheck size={18}/><div><strong>Finalized read-only case record</strong><p>This page reflects the submitted clinician interpretation, simulated AI second read, and completed expert adjudication. It cannot be edited.</p></div></div>
     <div className="detail-grid reviewed-detail">
-      <div><EcgViewer/><Panel title="Case Information" action={<span className="anonymized"><ShieldCheck size={14}/>Anonymized</span>}><div className="patient-grid">{[["Patient ID",selected.patientId],["Age",`${selected.age} years`],["Sex",selected.sex],["Department",selected.department],["Ordering Physician",selected.orderingPhysician],["HR at Acquisition",`${selected.hrAtAcquisition} bpm`],["Submitted",submission.submittedAt],["Reviewed",submission.reviewedAt || "—"],["Encounter",selected.encounter]].map(([key,value])=><div key={key}><span>{key}</span><strong className={key==="Patient ID"||key==="Encounter"?"mono":""}>{value}</strong></div>)}</div></Panel></div>
+      <div><EcgViewer/><Panel title="Case Information" action={<span className="anonymized"><ShieldCheck size={14}/>Anonymized</span>}><div className="patient-grid">{[["Patient ID",selected.patientId],["Age Range",submission.ageRange || `${selected.age} years`],["Sex",submission.sexLabel || selected.sex],["Department",selected.department],["Reason",submission.reason || selected.chiefComplaint],["AI/Clinician Match",submission.matchRating !== undefined ? `${submission.matchRating}%` : "—"],["AI Confidence",submission.aiConfidence !== undefined ? `${submission.aiConfidence}%` : "—"],["Submitted",submission.submittedAt],["Reviewed",submission.reviewedAt || "—"]].map(([key,value])=><div key={key}><span>{key}</span><strong className={key==="Patient ID"?"mono":""}>{value}</strong></div>)}</div></Panel></div>
       <aside className="interpretations read-only-interpretations">
         <Panel title="Clinician Input" action={<span className="record-label">SUBMITTED</span>}><div className="record-diagnosis"><span>PRIMARY DIAGNOSIS</span><h3>{selected.clinicianDx}</h3><p>The clinician interpretation was recorded before the AI second read was revealed.</p></div></Panel>
         <Panel title="AI Reading" action={<span className="model-chip">ECG-AI v2.4 · simulated</span>}><div className="record-diagnosis ai-record"><span>PRIMARY DIAGNOSIS</span><h3>{selected.aiDx}</h3><ul className="findings"><li>Rhythm morphology and interval pattern analyzed</li><li>Confidence-weighted quality-improvement comparison</li><li>Decision-support output only</li></ul></div></Panel>
@@ -445,6 +511,7 @@ function MyExpertReviews({ submissions }: { submissions: ClinicianReviewSubmissi
         <div>{submission.status === "reviewed" ? <Link className="id-link" to={`/cases/${submission.caseItem.patientId}`}>{submission.caseItem.patientId}</Link> : <span className="mono">{submission.caseItem.patientId}</span>}<PriorityBadge priority={submission.caseItem.priority}/></div>
         <p>Your diagnosis: <strong>{submission.caseItem.clinicianDx}</strong></p>
         <p>AI comparison: <strong className="blue-text">{submission.caseItem.aiDx}</strong></p>
+        {submission.matchRating !== undefined && <p>Match rating: <strong>{submission.matchRating}%</strong></p>}
         {submission.status === "reviewed" ? <>
           <div className="expert-feedback"><span><CheckCircle2 size={14}/>EXPERT FINAL DIAGNOSIS</span><strong>{submission.finalDx}</strong><p>{submission.takeaway}</p></div>
           <footer><span><Clock3 size={14}/>{submission.reviewedAt}</span><b>{submission.expertName}</b></footer>
@@ -452,6 +519,12 @@ function MyExpertReviews({ submissions }: { submissions: ClinicianReviewSubmissi
       </article>)}
     </section>)}</div>
   </>;
+}
+
+function QueueCaseDetails({ caseItem, submission, completed, reviewer }: { caseItem: Case; submission?: ClinicianReviewSubmission; completed: boolean; reviewer: string }) {
+  return <><div><span className="id-link">{caseItem.patientId}</span><PriorityBadge priority={caseItem.priority}/></div><p>Clinician: <strong>{caseItem.clinicianDx}</strong></p><p>AI: <strong className="blue-text">{caseItem.aiDx}</strong></p>
+    {submission && <div className="queue-submission-details"><span>{submission.ageRange || `${caseItem.age} years`} · {submission.sexLabel || caseItem.sex}</span><span>{caseItem.department}</span>{submission.matchRating !== undefined && <strong>{submission.matchRating}% match</strong>}{submission.reason && <p>{submission.reason}</p>}</div>}
+    {completed && <p className="final">Expert final: {caseItem.aiDx}<CheckCircle2 size={15}/></p>}<footer><span><Clock3 size={14}/>{caseItem.elapsed}</span>{completed&&<b>{reviewer}</b>}</footer></>;
 }
 
 function ReviewPage({ submissions, onReviewCompleted }: { submissions: ClinicianReviewSubmission[]; onReviewCompleted: (caseId: string, finalDx: string, takeaway: string, expertNotes: string) => void }) {
@@ -474,12 +547,12 @@ function ReviewPage({ submissions, onReviewCompleted }: { submissions: Clinician
   return <>
     <PageHeader title="Expert Review Queue" subtitle="Only cases escalated for expert adjudication · Highest severity first" actions={<select aria-label="Department filter"><option>All Departments</option><option>Emergency</option><option>Cardiology</option></select>}/>
     <div className="review-scope-note"><ShieldCheck size={16}/><span>Clinician-only decisions and accepted AI suggestions are excluded. Completed means an expert submitted a final adjudication.</span></div>
-    <div className="kanban review-kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((c,i)=><button key={c.id} className={`case-card ${selected?.caseItem.id === c.id ? "selected" : ""}`} onClick={()=>setSelected({caseItem:c, completed:col.key === "complete"})}><div><span className="id-link">{c.patientId}</span><PriorityBadge priority={c.priority}/></div><p>Clinician: <strong>{c.clinicianDx}</strong></p><p>AI: <strong className="blue-text">{c.aiDx}</strong></p>{col.key==="complete"&&<p className="final">Expert final: {c.aiDx}<CheckCircle2 size={15}/></p>}<footer><span><Clock3 size={14}/>{c.elapsed}</span>{col.key==="complete"&&<b>{i%2 ? "Dr. Patel" : "Dr. Chen"}</b>}</footer></button>)}</section>)}</div>
-    {selected && <ExpertReviewDrawer key={selected.caseItem.id} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={(finalDx,takeaway,expertNotes)=>{ setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id]); onReviewCompleted(selected.caseItem.id, finalDx, takeaway, expertNotes); }}/>}
+    <div className="kanban review-kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((caseItem,index)=><button key={caseItem.id} className={`case-card ${selected?.caseItem.id === caseItem.id ? "selected" : ""}`} onClick={()=>setSelected({caseItem, completed:col.key === "complete"})}><QueueCaseDetails caseItem={caseItem} submission={submissions.find(item=>item.caseItem.id===caseItem.id)} completed={col.key==="complete"} reviewer={index%2 ? "Dr. Patel" : "Dr. Chen"}/></button>)}</section>)}</div>
+    {selected && <ExpertReviewDrawer key={selected.caseItem.id} submission={submissions.find(item=>item.caseItem.id===selected.caseItem.id)} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={(finalDx,takeaway,expertNotes)=>{ setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id]); onReviewCompleted(selected.caseItem.id, finalDx, takeaway, expertNotes); }}/>}
   </>;
 }
 
-function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: { caseItem: Case; onClose: () => void; onSubmit: (finalDx: string, takeaway: string, expertNotes: string) => void; completed?: boolean }) {
+function ExpertReviewDrawer({ caseItem, submission, onClose, onSubmit, completed = false }: { caseItem: Case; submission?: ClinicianReviewSubmission; onClose: () => void; onSubmit: (finalDx: string, takeaway: string, expertNotes: string) => void; completed?: boolean }) {
   const [finalDx, setFinalDx] = useState(completed ? caseItem.aiDx : "");
   const [notes, setNotes] = useState(completed ? "Expert adjudication completed after independent waveform review and comparison of the clinician and AI interpretations." : "");
   const [takeaway, setTakeaway] = useState(completed ? "Review rhythm regularity and lead morphology before distinguishing closely related tachyarrhythmias." : "");
@@ -504,6 +577,7 @@ function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: 
       <form onSubmit={submitReview}>
         <div className="expert-review-body">
           <div className="drawer-alert"><AlertTriangle size={17}/><div><strong>Major Discrepancy</strong><p>Clinical decision authority rests with the treating physician. AI is a second-reader tool only.</p></div></div>
+          {submission && <div className="drawer-case-context">{[["Age",submission.ageRange || `${caseItem.age} years`],["Sex",submission.sexLabel || caseItem.sex],["Department",caseItem.department],["Match",submission.matchRating !== undefined ? `${submission.matchRating}%` : "—"],["AI Confidence",submission.aiConfidence !== undefined ? `${submission.aiConfidence}%` : "—"],["Reason",submission.reason || caseItem.chiefComplaint]].map(([label,value])=><span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>}
           <div className="drawer-dx-compare"><div><span>CLINICIAN DX</span><strong>{caseItem.clinicianDx}</strong></div><div><span>AI DX</span><strong>{caseItem.aiDx}</strong></div></div>
           <WorkflowEcg compact seed={Number(caseItem.id.replace(/\D/g,"").slice(-1)) % 4}/>
           <label>Final Diagnosis *<input value={finalDx} onChange={event=>setFinalDx(event.target.value)} placeholder="Enter expert final diagnosis..."/></label>

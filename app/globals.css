@@ -295,3 +295,20 @@ tbody tr:hover{background:#152741}
 .takeaway-icon{color:#F6B94D}.case-takeaway{display:flex;align-items:flex-start;gap:12px;padding:16px;background:#302711;color:#FFE09A}.case-takeaway svg{flex:none;color:#F6B94D}.case-takeaway p{margin:0;line-height:1.55}
 @media(max-width:800px){.pending-case-grid{grid-template-columns:1fr}}
 @media(max-width:500px){.pending-case>div{grid-template-columns:1fr}}
+
+.workflow-form .input-error{border-color:#E85B69;box-shadow:0 0 0 2px rgba(232,91,105,.12)}
+.workflow-form .field-error{display:block;margin-top:6px;color:#FF929D;font-size:10px;font-weight:700}
+.match-rating{display:grid;grid-template-columns:1fr auto;align-items:center;gap:7px;margin:12px 0 16px}
+.match-rating>span{grid-column:1/-1;font-size:9px!important;font-weight:900;color:#7890AB;letter-spacing:.06em}
+.match-rating>i{height:7px;background:#263A54;border-radius:99px;overflow:hidden}.match-rating>i b{display:block;height:100%;background:linear-gradient(90deg,#E89B32,#56D68B);border-radius:99px}
+.match-rating>strong{color:#91C0FF}
+.pending-reason{margin:12px 0 0!important;padding:9px 10px;border-radius:7px;background:#15243A;color:#9EB0C5!important;font-size:10px!important;line-height:1.45}
+.pending-reason b{color:#C9D6E6}
+.queue-submission-details{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin:11px 0;padding:10px;border:1px solid #2B405C;border-radius:8px;background:#0D1B2D;text-align:left}
+.queue-submission-details span{color:#91A3BB;font-size:10px}.queue-submission-details strong{color:#FFD37D;font-size:10px;text-align:right}
+.queue-submission-details p{grid-column:1/-1;margin:2px 0 0!important;color:#A9B8C9!important;font-size:10px!important;line-height:1.4}
+.drawer-case-context{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.drawer-case-context>span{display:flex;flex-direction:column;gap:5px;padding:10px;border:1px solid #2B405C;border-radius:8px;background:#101D2F;min-width:0}
+.drawer-case-context small{color:#7488A1;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+.drawer-case-context strong{color:#DFE8F3;font-size:10px;overflow-wrap:anywhere}
+@media(max-width:560px){.drawer-case-context{grid-template-columns:repeat(2,1fr)}}
