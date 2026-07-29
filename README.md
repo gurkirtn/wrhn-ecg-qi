@@ -1,39 +1,22 @@
 # ECG-QI
 
-ECG-QI is an interactive quality-improvement prototype for Waterloo Regional
-Health Network. It provides an AI-assisted second read, discrepancy
-classification, expert review, private clinician learning feedback, and
-hospital-wide aggregate analytics.
+Prototype ECG quality-improvement workflow for Waterloo Regional Health
+Network. It separates clinician and expert-review workspaces and includes case
+submission, simulated AI comparison, expert adjudication, learning feedback,
+and aggregate reporting.
 
-## What is implemented
+All records and ECG traces are synthetic. This project is for demonstration
+and education, not clinical diagnosis.
 
-- Responsive application shell with Dashboard, ECG Cases, Review Queue,
-  Learning Dashboard, Analytics, and Settings routes.
-- Twenty typed, anonymized case fixtures and chart aggregates.
-- Interactive case filtering and linked case details.
-- A 12-lead synthetic ECG viewer with clinical calibration labels.
-- Submit-before-reveal behavior for unread cases.
-- Simulated AI prediction metadata, confidence, latency, explanation, and
-  clinician-override copy.
-- Expert review queue, private learning feedback, and aggregate analytics.
-- Keyboard focus states and reduced-motion support.
+## Run locally
 
-## What is simulated
-
-All patient records, ECG traces, AI reads, adjudications, and metrics are mock
-data for a capstone demonstration. The product is a quality-improvement and
-education tool, not an autonomous diagnostic device.
-
-`app/data.ts` exposes `aiService.getReadForCase(caseId)` with the same
-asynchronous interface a real inference service can implement. Replace that
-method with an API call while keeping the `AiPrediction` contract in
-`app/types.ts`. The discrepancy helper can similarly be replaced by a
-clinically validated terminology and tiering service.
-
-## Local use
+Requires Node.js 22 or newer.
 
 ```bash
-pnpm install --dangerously-allow-all-builds
-pnpm run dev
-pnpm run build
+corepack enable
+pnpm install
+pnpm dev
 ```
+
+Use `pnpm build` for a production build and `pnpm test` for the route smoke
+tests.
