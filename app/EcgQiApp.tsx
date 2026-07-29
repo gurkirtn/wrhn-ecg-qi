@@ -12,7 +12,7 @@ import {
   LineChart, Pie, PieChart, PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from "recharts";
-import { BrowserRouter, Link, MemoryRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Link, MemoryRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { cases, discrepancyData, learningCases, personalTrend, trend12 } from "./data";
 import type { Case, Priority } from "./types";
 
@@ -647,9 +647,12 @@ function SettingsPage() {
   </>;
 }
 
-export default function EcgQiApp({ initialPath = "/" }: { initialPath?: string }) {
+export default function EcgQiApp({ initialPath = "/", staticHosting = false }: { initialPath?: string; staticHosting?: boolean }) {
   if (typeof window === "undefined") {
     return <MemoryRouter initialEntries={[initialPath]}><Shell/></MemoryRouter>;
+  }
+  if (staticHosting) {
+    return <HashRouter><Shell/></HashRouter>;
   }
   return <BrowserRouter><Shell/></BrowserRouter>;
 }
