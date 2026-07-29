@@ -25,10 +25,22 @@ type MockAccount = {
   title: string;
   roles: WorkspaceRole[];
 };
+type ClinicianReviewSubmission = {
+  id: string;
+  ownerId: MockAccount["id"];
+  caseItem: Case;
+  status: "awaiting" | "reviewed";
+  submittedAt: string;
+  reviewedAt?: string;
+  expertName?: string;
+  finalDx?: string;
+  takeaway?: string;
+};
 
 const clinicianNav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "ECG Cases", icon: HeartPulse },
+  { href: "/my-reviews", label: "My Expert Reviews", icon: ClipboardList },
   { href: "/learning", label: "Learning Dashboard", icon: GraduationCap },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -49,6 +61,23 @@ const mockAccounts: MockAccount[] = [
   { id: "clinician", name: "Dr. Elena Rossi", initials: "ER", email: "clinician@wrhn.demo", title: "Emergency Medicine", roles: ["clinician"] },
   { id: "expert", name: "Dr. Maya Chen", initials: "MC", email: "expert@wrhn.demo", title: "Cardiology Expert", roles: ["expert"] },
   { id: "dual", name: "Dr. A. Nkemdirim", initials: "AN", email: "adaeze@wrhn.demo", title: "Emergency Medicine · Expert Reviewer", roles: ["clinician", "expert"] },
+];
+const mockEscalatedCase: Case = {
+  ...cases[19],
+  id: "case-wrhn-00482",
+  patientId: "WRHN-00482",
+  priority: "high",
+  status: "waiting",
+  clinicianDx: "Sinus Tachycardia",
+  aiDx: "Atrial Flutter with 2:1 Conduction",
+  verdict: "major",
+  elapsed: "Just now",
+};
+const seededClinicianSubmissions: ClinicianReviewSubmission[] = [
+  { id: "submission-wrhn-00482", ownerId: "dual", caseItem: mockEscalatedCase, status: "awaiting", submittedAt: "Today · 10:04" },
+  { id: "submission-pt-20710", ownerId: "dual", caseItem: { ...cases[2], id: "case-pt-20710", patientId: "PT-20710", clinicianDx: "Sinus Tachycardia", aiDx: "Atrial Flutter", priority: "high" }, status: "reviewed", submittedAt: "Dec 18 · 09:14", reviewedAt: "Dec 18 · 10:02", expertName: "Dr. Maya Chen", finalDx: "Atrial Flutter", takeaway: "Flutter waves at 300 bpm with 2:1 block can mimic sinus tachycardia — inspect V1 and inferior leads carefully." },
+  { id: "submission-pt-20901", ownerId: "clinician", caseItem: { ...cases[4], id: "case-pt-20901", patientId: "PT-20901", clinicianDx: "STEMI", aiDx: "STEMI with LVH", priority: "critical" }, status: "awaiting", submittedAt: "Today · 09:41" },
+  { id: "submission-pt-20877", ownerId: "clinician", caseItem: { ...cases[10], id: "case-pt-20877", patientId: "PT-20877", clinicianDx: "Normal Sinus Rhythm", aiDx: "Posterior MI", priority: "high" }, status: "reviewed", submittedAt: "Yesterday · 15:20", reviewedAt: "Yesterday · 15:48", expertName: "Dr. Samir Patel", finalDx: "Posterior MI", takeaway: "Reciprocal ST depression in V1–V3 with tall R waves should prompt posterior-lead assessment." },
 ];
 
 function Logo({ compact = false }: { compact?: boolean }) {
@@ -84,7 +113,11 @@ function Shell() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [account, setAccount] = useState<MockAccount | null>(null);
   const [role, setRole] = useState<WorkspaceRole>("clinician");
+  const [reviewSubmissions, setReviewSubmissions] = useState<ClinicianReviewSubmission[]>(seededClinicianSubmissions);
   if (!account) return <MockLogin onLogin={nextAccount => { setAccount(nextAccount); setRole(nextAccount.roles[0]); navigate("/"); }}/>;
+  const myReviewSubmissions = reviewSubmissions.filter(item => item.ownerId === account.id);
+  const addExpertSubmission = (caseItem: Case) => setReviewSubmissions(items => items.some(item => item.ownerId === account.id && item.caseItem.id === caseItem.id) ? items : [{ id: `submission-${account.id}-${caseItem.id}`, ownerId: account.id, caseItem, status: "awaiting", submittedAt: "Just now" }, ...items]);
+  const completeExpertSubmission = (caseId: string, finalDx: string, takeaway: string) => setReviewSubmissions(items => items.map(item => item.caseItem.id === caseId ? { ...item, status: "reviewed", reviewedAt: "Just now", expertName: account.name, finalDx, takeaway } : item));
   const activeNav = role === "expert" ? expertNav : clinicianNav;
   const switchRole = (nextRole: WorkspaceRole) => {
     setRole(nextRole);
@@ -128,10 +161,11 @@ function Shell() {
         </header>
         <main className="content">
           <Routes>
-            <Route path="/" element={role === "expert" ? <ExpertDashboard/> : <Dashboard openUpload={() => setUploadOpen(true)}/>}/>
+            <Route path="/" element={role === "expert" ? <ExpertDashboard/> : <Dashboard submissions={myReviewSubmissions} openUpload={() => setUploadOpen(true)}/>}/>
             <Route path="/cases" element={<CasesPage openUpload={() => setUploadOpen(true)} canUpload={role === "clinician"}/>}/>
             <Route path="/cases/:id" element={<CaseDetail/>}/>
-            <Route path="/review" element={role === "expert" ? <ReviewPage/> : <Navigate to="/" replace/>}/>
+            <Route path="/review" element={role === "expert" ? <ReviewPage submissions={reviewSubmissions} onReviewCompleted={completeExpertSubmission}/> : <Navigate to="/" replace/>}/>
+            <Route path="/my-reviews" element={role === "clinician" ? <MyExpertReviews submissions={myReviewSubmissions}/> : <Navigate to="/" replace/>}/>
             <Route path="/learning" element={role === "clinician" ? <LearningPage/> : <Navigate to="/" replace/>}/>
             <Route path="/analytics" element={role === "expert" ? <AnalyticsPage/> : <Navigate to="/" replace/>}/>
             <Route path="/settings" element={<SettingsPage/>}/>
@@ -139,12 +173,12 @@ function Shell() {
           </Routes>
         </main>
       </div>
-      {role === "clinician" && uploadOpen && <UploadWorkflow onClose={() => setUploadOpen(false)}/>}
+      {role === "clinician" && uploadOpen && <UploadWorkflow accountName={account.name} onExpertSubmit={addExpertSubmission} onClose={() => setUploadOpen(false)}/>}
     </div>
   );
 }
 
-function UploadWorkflow({ onClose }: { onClose: () => void }) {
+function UploadWorkflow({ onClose, onExpertSubmit, accountName }: { onClose: () => void; onExpertSubmit: (caseItem: Case) => void; accountName: string }) {
   const navigate = useNavigate();
   const [mockSeed, setMockSeed] = useState(0);
   const [step, setStep] = useState(1);
@@ -176,6 +210,7 @@ function UploadWorkflow({ onClose }: { onClose: () => void }) {
   }, [step]);
   const finish = (choice: "accepted" | "maintained" | "expert") => {
     setOutcome(choice);
+    if (choice === "expert") onExpertSubmit({ ...mockEscalatedCase, clinicianDx: diagnosis });
     setStep(5);
   };
   const loadRandomMockEcg = () => {
@@ -185,7 +220,7 @@ function UploadWorkflow({ onClose }: { onClose: () => void }) {
   };
   return <div className="workflow-backdrop" role="presentation">
     <section className="upload-workflow" role="dialog" aria-modal="true" aria-labelledby="upload-workflow-title">
-      <header className="workflow-header"><span className="workflow-icon"><Upload size={20}/></span><div><h2 id="upload-workflow-title">Upload ECG — New Case Workflow</h2><p>WRHN Cardiac Services · Dr. A. Nkemdirim</p></div><button onClick={onClose} aria-label="Close upload workflow"><X size={20}/></button></header>
+      <header className="workflow-header"><span className="workflow-icon"><Upload size={20}/></span><div><h2 id="upload-workflow-title">Upload ECG — New Case Workflow</h2><p>WRHN Cardiac Services · {accountName}</p></div><button onClick={onClose} aria-label="Close upload workflow"><X size={20}/></button></header>
       <div className="stepper" aria-label={`Step ${step} of 5`}>
         {["Upload ECG","Clinician Review","AI Processing","Comparison","Expert Review"].map((label, index) => {
           const number = index + 1;
@@ -223,7 +258,7 @@ function UploadWorkflow({ onClose }: { onClose: () => void }) {
         {step === 2 && <><button className="button ghost" onClick={() => setStep(1)}>‹ Back</button><div><button className="button secondary">Save Draft</button><button className="button primary" onClick={() => setStep(3)}><Zap size={16}/>Submit for AI Analysis</button></div></>}
         {step === 3 && <><span/><button className="button secondary" onClick={() => setStep(2)}>Cancel processing</button></>}
         {step === 4 && <><button className="button ghost" onClick={() => setStep(2)}>‹ Back</button><div><button className="button secondary decision" onClick={() => finish("accepted")}><Check size={16}/>Accept AI Suggestion</button><button className="button secondary decision" onClick={() => finish("maintained")}><Stethoscope size={16}/>Maintain Clinician Interpretation</button><button className="button primary decision" onClick={() => finish("expert")}><Sparkles size={16}/>Send to Expert Review</button></div></>}
-        {step === 5 && <><button className="button ghost" onClick={onClose}>Close</button><button className="button primary" onClick={() => { onClose(); navigate(outcome === "expert" ? "/review" : "/cases/PT-20839"); }}>{outcome === "expert" ? "Open Review Queue" : "View Case"} →</button></>}
+        {step === 5 && <><button className="button ghost" onClick={onClose}>Close</button><button className="button primary" onClick={() => { onClose(); navigate(outcome === "expert" ? "/my-reviews" : "/cases/PT-20839"); }}>{outcome === "expert" ? "Track My Review" : "View Case"} →</button></>}
       </footer>
     </section>
   </div>;
@@ -257,14 +292,16 @@ function PriorityBadge({ priority }: { priority: Priority }) {
 const tickStyle = { fontSize: 11, fill: "#94A3B8" };
 const gridStyle = "#26364D";
 
-function Dashboard({ openUpload }: { openUpload: () => void }) {
+function Dashboard({ openUpload, submissions }: { openUpload: () => void; submissions: ClinicianReviewSubmission[] }) {
+  const awaitingReviews = submissions.filter(item => item.status === "awaiting");
+  const completedReviews = submissions.filter(item => item.status === "reviewed");
   return <>
     <PageHeader title="Dashboard" subtitle="Wednesday, December 18, 2024 · WRHN Cardiac Services" actions={<><span className="updated"><Clock3 size={14}/>Updated 2 min ago</span><button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button></>}/>
     <div className="kpi-grid">
       <KpiCard icon={Activity} tone="blue" value="143" label="ECGs Today" delta="↗ 9%" note="↑ 12 from yesterday"/>
       <KpiCard icon={Zap} tone="green" value="88.1%" label="AI Agreement Rate" delta="↗ 2.3%" note="3-month rolling average"/>
-      <KpiCard icon={ClipboardList} tone="amber" value="18" label="Awaiting Review" delta="↓ 5%" note="4 high priority"/>
-      <KpiCard icon={Clock3} tone="purple" value="23 min" label="Avg. Review Time" delta="↗ 12%" note="Target: ≤30 min"/>
+      <KpiCard icon={ClipboardList} tone="amber" value={String(awaitingReviews.length)} label="My Awaiting Reviews" delta="Personal" note="Expert-adjudication submissions"/>
+      <KpiCard icon={CheckCircle2} tone="purple" value={String(completedReviews.length)} label="My Reviews Ready" delta="Feedback" note="Expert feedback available"/>
     </div>
     <div className="dashboard-charts">
       <Panel title="Concordance Rate — 12 Month Trend" subtitle="AI vs. Clinician agreement, rolling monthly" action={<span className="success-badge">+8.9 pts YTD</span>}>
@@ -274,6 +311,12 @@ function Dashboard({ openUpload }: { openUpload: () => void }) {
         <div className="chart tall"><ResponsiveContainer><BarChart data={discrepancyData} layout="vertical" margin={{ top: 8, right: 18, left: 16, bottom: 0 }}><CartesianGrid stroke={gridStyle} strokeDasharray="4 4" horizontal={false}/><XAxis type="number" domain={[0,20]} tick={tickStyle} axisLine={false} tickLine={false}/><YAxis type="category" dataKey="name" width={92} tick={tickStyle} axisLine={false} tickLine={false}/><Tooltip/><Bar dataKey="value" fill="#EF4444" radius={[0,4,4,0]} barSize={10}/></BarChart></ResponsiveContainer></div>
       </Panel>
     </div>
+    <Panel title="Today’s Expert Review Workload" subtitle="Your personal submissions only" action={<Link className="text-link" to="/my-reviews">View all →</Link>}>
+      <div className="clinician-today-workload">
+        <Link to="/my-reviews"><span className="icon-chip amber"><Clock3 size={19}/></span><div><small>AWAITING EXPERT REVIEW</small><strong>{awaitingReviews.length}</strong><p>{awaitingReviews[0] ? `${awaitingReviews[0].caseItem.patientId} · ${awaitingReviews[0].caseItem.priority.toUpperCase()} priority` : "No pending submissions"}</p></div><b>Track →</b></Link>
+        <Link to="/my-reviews"><span className="icon-chip green"><CheckCircle2 size={19}/></span><div><small>REVIEWED</small><strong>{completedReviews.length}</strong><p>{completedReviews[0] ? `${completedReviews[0].caseItem.patientId} · Feedback ready` : "No completed reviews yet"}</p></div><b>Open →</b></Link>
+      </div>
+    </Panel>
     <RecentTable rows={cases.slice(0,6)}/>
   </>;
 }
@@ -369,40 +412,62 @@ function InterpretationContent({ title, findings, note }: { title: string; findi
   return <><span className="eyebrow">PRIMARY DIAGNOSIS</span><h3>{title}</h3><ul className="findings">{findings.map(x=><li key={x}>{x}</li>)}</ul><p className="quote-note">{note}</p></>;
 }
 
-function ReviewPage() {
+function MyExpertReviews({ submissions }: { submissions: ClinicianReviewSubmission[] }) {
+  const awaiting = submissions.filter(item => item.status === "awaiting");
+  const reviewed = submissions.filter(item => item.status === "reviewed");
+  const columns = [
+    { key: "awaiting", title: "AWAITING EXPERT REVIEW", tone: "amber", items: awaiting },
+    { key: "reviewed", title: "REVIEWED", tone: "green", items: reviewed },
+  ];
+  return <>
+    <PageHeader title="My Expert Reviews" subtitle="Track only the ECG cases you personally submitted for expert adjudication" actions={<button className="button secondary"><Filter size={15}/>Filter</button>}/>
+    <div className="clinician-review-summary">
+      <article><span className="icon-chip amber"><Clock3 size={18}/></span><div><strong>{awaiting.length}</strong><small>Awaiting expert review</small></div></article>
+      <article><span className="icon-chip green"><CheckCircle2 size={18}/></span><div><strong>{reviewed.length}</strong><small>Expert feedback ready</small></div></article>
+      <p><ShieldCheck size={16}/>Private view · only your own submissions are shown</p>
+    </div>
+    <div className="kanban clinician-workload">{columns.map(column => <section className="kanban-col" key={column.key}>
+      <header className={column.tone}><span>{column.title}</span><b>{column.items.length}</b></header>
+      {column.items.length === 0 && <div className="empty-review-column"><CheckCircle2 size={25}/><strong>No cases here</strong><p>Your submitted cases will appear automatically.</p></div>}
+      {column.items.map(submission => <article className="case-card clinician-review-card" key={submission.id}>
+        <div><Link className="id-link" to={`/cases/${submission.caseItem.patientId}`}>{submission.caseItem.patientId}</Link><PriorityBadge priority={submission.caseItem.priority}/></div>
+        <p>Your diagnosis: <strong>{submission.caseItem.clinicianDx}</strong></p>
+        <p>AI comparison: <strong className="blue-text">{submission.caseItem.aiDx}</strong></p>
+        {submission.status === "reviewed" ? <>
+          <div className="expert-feedback"><span><CheckCircle2 size={14}/>EXPERT FINAL DIAGNOSIS</span><strong>{submission.finalDx}</strong><p>{submission.takeaway}</p></div>
+          <footer><span><Clock3 size={14}/>{submission.reviewedAt}</span><b>{submission.expertName}</b></footer>
+        </> : <><div className="awaiting-status"><Clock3 size={15}/><span><strong>Waiting for expert assignment</strong>Submitted {submission.submittedAt}</span></div><footer><span>Updates will appear here</span></footer></>}
+      </article>)}
+    </section>)}</div>
+  </>;
+}
+
+function ReviewPage({ submissions, onReviewCompleted }: { submissions: ClinicianReviewSubmission[]; onReviewCompleted: (caseId: string, finalDx: string, takeaway: string) => void }) {
   const [selected, setSelected] = useState<{ caseItem: Case; completed: boolean } | null>(null);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
-  const newReviewCase: Case = {
-    ...cases[19],
-    id: "case-wrhn-00482",
-    patientId: "WRHN-00482",
-    priority: "high",
-    status: "waiting",
-    clinicianDx: "Sinus Tachycardia",
-    aiDx: "Atrial Flutter with 2:1 Conduction",
-    verdict: "major",
-    elapsed: "Just now",
-  };
   const severityRank: Record<Priority, number> = { critical: 4, high: 3, medium: 2, low: 1 };
   const sortBySeverity = (items: Case[]) => [...items].sort((a,b) => severityRank[b.priority] - severityRank[a.priority] || a.patientId.localeCompare(b.patientId));
   const expertReviewedSeed = [
     { ...cases[7], elapsed: "Reviewed 45 min ago" },
     { ...cases[8], elapsed: "Reviewed 2.3 hr ago" },
   ];
-  const newlyCompleted = completedIds.map(id => id === newReviewCase.id ? newReviewCase : cases.find(c => c.id === id)).filter((c): c is Case => Boolean(c));
+  const submittedAwaiting = submissions.filter(item => item.status === "awaiting").map(item => item.caseItem);
+  const submittedReviewed = submissions.filter(item => item.status === "reviewed").map(item => ({ ...item.caseItem, aiDx: item.finalDx || item.caseItem.aiDx, elapsed: item.reviewedAt || "Expert reviewed" }));
+  const newlyCompleted = completedIds.map(id => cases.find(c => c.id === id)).filter((c): c is Case => Boolean(c));
+  const genericAwaiting = cases.slice(0,7).filter(item => !submissions.some(submission => submission.caseItem.id === item.id));
   const columns = [
-    { key: "pending", title: "YET TO REVIEW", tone: "amber", items: sortBySeverity([newReviewCase, ...cases.slice(0,7)].filter(c => !completedIds.includes(c.id))) },
-    { key: "complete", title: "EXPERT REVIEWED", tone: "green", items: sortBySeverity([...expertReviewedSeed, ...newlyCompleted.filter(c => !expertReviewedSeed.some(existing => existing.id === c.id))]) },
+    { key: "pending", title: "YET TO REVIEW", tone: "amber", items: sortBySeverity([...submittedAwaiting, ...genericAwaiting].filter(c => !completedIds.includes(c.id))) },
+    { key: "complete", title: "EXPERT REVIEWED", tone: "green", items: sortBySeverity([...submittedReviewed, ...expertReviewedSeed, ...newlyCompleted].filter((item,index,array) => array.findIndex(other => other.id === item.id) === index)) },
   ];
   return <>
     <PageHeader title="Expert Review Queue" subtitle="Only cases escalated for expert adjudication · Highest severity first" actions={<select aria-label="Department filter"><option>All Departments</option><option>Emergency</option><option>Cardiology</option></select>}/>
     <div className="review-scope-note"><ShieldCheck size={16}/><span>Clinician-only decisions and accepted AI suggestions are excluded. Completed means an expert submitted a final adjudication.</span></div>
     <div className="kanban review-kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((c,i)=><button key={c.id} className={`case-card ${selected?.caseItem.id === c.id ? "selected" : ""}`} onClick={()=>setSelected({caseItem:c, completed:col.key === "complete"})}><div><span className="id-link">{c.patientId}</span><PriorityBadge priority={c.priority}/></div><p>Clinician: <strong>{c.clinicianDx}</strong></p><p>AI: <strong className="blue-text">{c.aiDx}</strong></p>{col.key==="complete"&&<p className="final">Expert final: {c.aiDx}<CheckCircle2 size={15}/></p>}<footer><span><Clock3 size={14}/>{c.elapsed}</span>{col.key==="complete"&&<b>{i%2 ? "Dr. Patel" : "Dr. Chen"}</b>}</footer></button>)}</section>)}</div>
-    {selected && <ExpertReviewDrawer key={selected.caseItem.id} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={()=>setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id])}/>}
+    {selected && <ExpertReviewDrawer key={selected.caseItem.id} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={(finalDx,takeaway)=>{ setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id]); onReviewCompleted(selected.caseItem.id, finalDx, takeaway); }}/>}
   </>;
 }
 
-function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: { caseItem: Case; onClose: () => void; onSubmit: () => void; completed?: boolean }) {
+function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: { caseItem: Case; onClose: () => void; onSubmit: (finalDx: string, takeaway: string) => void; completed?: boolean }) {
   const [finalDx, setFinalDx] = useState(completed ? caseItem.aiDx : "");
   const [notes, setNotes] = useState(completed ? "Expert adjudication completed after independent waveform review and comparison of the clinician and AI interpretations." : "");
   const [takeaway, setTakeaway] = useState(completed ? "Review rhythm regularity and lead morphology before distinguishing closely related tachyarrhythmias." : "");
@@ -416,7 +481,7 @@ function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: 
   const submitReview = (event: React.FormEvent) => {
     event.preventDefault();
     if (!finalDx || !notes || !takeaway) return;
-    onSubmit();
+    onSubmit(finalDx, takeaway);
     setSubmitted(true);
   };
   return <div className="review-drawer-layer">
