@@ -409,10 +409,13 @@ const gridStyle = "#26364D";
 function Dashboard({ openUpload, submissions }: { openUpload: () => void; submissions: ClinicianReviewSubmission[] }) {
   const awaitingReviews = submissions.filter(item => item.status === "awaiting");
   const completedReviews = submissions.filter(item => item.status === "reviewed");
+  const todaysEcgCount = submissions.filter(
+    item => item.submittedAt.startsWith("Today") || item.submittedAt.startsWith("Just now"),
+  ).length;
   return <>
     <PageHeader title="Dashboard" subtitle="Wednesday, December 18, 2024 · WRHN Cardiac Services" actions={<><span className="updated"><Clock3 size={14}/>Updated 2 min ago</span><button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button></>}/>
     <div className="kpi-grid">
-      <KpiCard icon={Activity} tone="blue" value="143" label="ECGs Today" delta="↗ 9%" note="↑ 12 from yesterday" to="/cases"/>
+      <KpiCard icon={Activity} tone="blue" value={String(todaysEcgCount)} label="ECGs Today" delta="Live" note="Your submissions today" to="/cases"/>
       <KpiCard icon={Zap} tone="green" value="88.1%" label="AI Agreement Rate" delta="↗ 2.3%" note="3-month rolling average" to="/learning#performance"/>
       <KpiCard icon={ClipboardList} tone="amber" value={String(awaitingReviews.length)} label="My Awaiting Reviews" delta="Personal" note="Expert-adjudication submissions" to="/cases#under-review"/>
       <KpiCard icon={CheckCircle2} tone="purple" value={String(completedReviews.length)} label="My Reviews Ready" delta="Feedback" note="Expert feedback available" to="/cases#reviewed"/>
@@ -446,10 +449,9 @@ function ExpertDashboard({ submissions }: { submissions: ClinicianReviewSubmissi
   return <>
     <PageHeader title="Expert Review Overview" subtitle="Cardiology adjudication workspace · High-priority discrepancies first" actions={<Link className="button primary" to="/review"><ClipboardList size={16}/>Open Review Queue</Link>}/>
     <div className="role-context-banner"><span><Stethoscope size={18}/></span><div><strong>Expert reviewer view</strong><p>Focused on discrepancy adjudication, clinical feedback, and hospital-wide quality improvement. Upload and private learning tools are hidden.</p></div></div>
-    <div className="kpi-grid">
+    <div className="kpi-grid three">
       <KpiCard icon={ClipboardList} tone="amber" value={String(allAwaiting.length)} label="Awaiting Expert Review" delta={`${submittedAwaiting.length} new`} note="Matches the review queue" to="/review#pending"/>
       <KpiCard icon={AlertTriangle} tone="red" value={String(highPriorityCount)} label="High Priority" delta="Risk sorted" note="Target response: ≤15 min" to="/review#pending"/>
-      <KpiCard icon={Clock3} tone="blue" value="18 min" label="Median Turnaround" delta="↓ 12%" note="Within service target" to="/analytics#review-turnaround"/>
       <KpiCard icon={CheckCircle2} tone="green" value={String(reviewedCount)} label="Expert Reviewed" delta="Completed" note="Matches the review queue" to="/review#completed"/>
     </div>
     <div className="expert-dashboard-grid">
