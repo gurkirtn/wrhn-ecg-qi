@@ -273,8 +273,13 @@ tbody tr:hover{background:#152741}
 .review-state{display:inline-flex;align-items:center;gap:5px;width:max-content;border-radius:99px;padding:5px 8px;font-size:10px;font-weight:800;white-space:nowrap}
 .review-state.reviewed{color:#73E4A2;background:#0B2A20;border:1px solid #236D4A}
 .review-state.awaiting{color:#FFD37D;background:#302711;border:1px solid #6D5924}
+.review-state.accepted{color:#8EC5FF;background:#102A49;border:1px solid #285F95}
+.reviewed-banner.accepted{color:#8EC5FF;background:#102A49;border-color:#285F95}
+.ai-accepted-record{border-color:#285F95;background:#102238}
+.ai-category{color:#8EC5FF!important;background:#102A49!important;border-color:#285F95!important}
+.ai-learning{background:#102238;border-color:#285F95;color:#B8D9FF}
 .count-chip{min-width:30px;height:26px;display:grid;place-items:center;border-radius:8px;font-size:11px;font-weight:900}
-.count-chip.amber{color:#FFD37D;background:#302711;border:1px solid #6D5924}.count-chip.green{color:#73E4A2;background:#0B2A20;border:1px solid #236D4A}
+.count-chip.amber{color:#FFD37D;background:#302711;border:1px solid #6D5924}.count-chip.green{color:#73E4A2;background:#0B2A20;border:1px solid #236D4A}.count-chip.blue{color:#8EC5FF;background:#102A49;border:1px solid #285F95}
 .case-section-stack{display:grid;gap:16px}
 .pending-case-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px}
 .pending-case{border:1px solid #2A3B53;border-radius:10px;background:#101D2F;padding:14px}
