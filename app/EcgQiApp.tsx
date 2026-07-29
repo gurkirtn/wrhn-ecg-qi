@@ -146,6 +146,14 @@ function Shell() {
   const [account, setAccount] = useState<MockAccount | null>(null);
   const [role, setRole] = useState<WorkspaceRole>("clinician");
   const [reviewSubmissions, setReviewSubmissions] = useState<ClinicianReviewSubmission[]>(seededClinicianSubmissions);
+  useEffect(() => {
+    if (!location.hash) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    const targetId = decodeURIComponent(location.hash.slice(1));
+    window.setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }, [location.pathname, location.hash]);
   if (!account) return <MockLogin onLogin={nextAccount => { setAccount(nextAccount); setRole(nextAccount.roles[0]); navigate("/"); }}/>;
   const myReviewSubmissions = reviewSubmissions.filter(item => item.ownerId === account.id);
   const addExpertSubmission = (draft: UploadSubmissionDraft) => {
@@ -375,12 +383,20 @@ function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: st
   return <div className="page-header"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{actions && <div className="header-actions">{actions}</div>}</div>;
 }
 
-function KpiCard({ icon: Icon, tone, value, label, delta, note }: { icon: typeof Activity; tone: string; value: string; label: string; delta: string; note: string }) {
-  return <article className="card kpi"><div className="kpi-top"><span className={`icon-chip ${tone}`}><Icon size={20}/></span><span className={`delta ${delta.includes("↓") ? "down" : ""}`}>{delta}</span></div><strong className="metric">{value}</strong><span className="metric-label">{label}</span><div className="kpi-note">{note}</div></article>;
+function KpiCard({ icon: Icon, tone, value, label, delta, note, to }: { icon: typeof Activity; tone: string; value: string; label: string; delta: string; note: string; to?: string }) {
+  const content = <><div className="kpi-top"><span className={`icon-chip ${tone}`}><Icon size={20}/></span><span className={`delta ${delta.includes("↓") ? "down" : ""}`}>{delta}</span></div><strong className="metric">{value}</strong><span className="metric-label">{label}</span><div className="kpi-note">{note}{to && <span className="pane-link-cue">Open →</span>}</div></>;
+  return to ? <Link className="card kpi kpi-link" to={to} aria-label={`Open ${label}`}>{content}</Link> : <article className="card kpi">{content}</article>;
 }
 
-function Panel({ title, subtitle, action, children, className = "" }: { title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return <section className={`card panel ${className}`}><div className="panel-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action}</div>{children}</section>;
+function Panel({ title, subtitle, action, children, className = "", id, to }: { title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode; className?: string; id?: string; to?: string }) {
+  const navigate = useNavigate();
+  const openPanel = (event: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>) => {
+    if (!to || (event.target as HTMLElement).closest("a,button,input,select,textarea")) return;
+    if ("key" in event && event.key !== "Enter" && event.key !== " ") return;
+    if ("key" in event) event.preventDefault();
+    navigate(to);
+  };
+  return <section id={id} className={`card panel ${to ? "panel-link" : ""} ${className}`} onClick={openPanel} onKeyDown={openPanel} tabIndex={to ? 0 : undefined} role={to ? "link" : undefined} aria-label={to ? `Open ${title}` : undefined}><div className="panel-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action || (to && <span className="pane-link-cue">Open →</span>)}</div>{children}</section>;
 }
 
 function PriorityBadge({ priority }: { priority: Priority }) {
@@ -396,23 +412,23 @@ function Dashboard({ openUpload, submissions }: { openUpload: () => void; submis
   return <>
     <PageHeader title="Dashboard" subtitle="Wednesday, December 18, 2024 · WRHN Cardiac Services" actions={<><span className="updated"><Clock3 size={14}/>Updated 2 min ago</span><button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button></>}/>
     <div className="kpi-grid">
-      <KpiCard icon={Activity} tone="blue" value="143" label="ECGs Today" delta="↗ 9%" note="↑ 12 from yesterday"/>
-      <KpiCard icon={Zap} tone="green" value="88.1%" label="AI Agreement Rate" delta="↗ 2.3%" note="3-month rolling average"/>
-      <KpiCard icon={ClipboardList} tone="amber" value={String(awaitingReviews.length)} label="My Awaiting Reviews" delta="Personal" note="Expert-adjudication submissions"/>
-      <KpiCard icon={CheckCircle2} tone="purple" value={String(completedReviews.length)} label="My Reviews Ready" delta="Feedback" note="Expert feedback available"/>
+      <KpiCard icon={Activity} tone="blue" value="143" label="ECGs Today" delta="↗ 9%" note="↑ 12 from yesterday" to="/cases"/>
+      <KpiCard icon={Zap} tone="green" value="88.1%" label="AI Agreement Rate" delta="↗ 2.3%" note="3-month rolling average" to="/learning#performance"/>
+      <KpiCard icon={ClipboardList} tone="amber" value={String(awaitingReviews.length)} label="My Awaiting Reviews" delta="Personal" note="Expert-adjudication submissions" to="/cases#under-review"/>
+      <KpiCard icon={CheckCircle2} tone="purple" value={String(completedReviews.length)} label="My Reviews Ready" delta="Feedback" note="Expert feedback available" to="/cases#reviewed"/>
     </div>
     <div className="dashboard-charts">
-      <Panel title="Concordance Rate — 12 Month Trend" subtitle="AI vs. Clinician agreement, rolling monthly" action={<span className="success-badge">+8.9 pts YTD</span>}>
+      <Panel title="Concordance Rate — 12 Month Trend" subtitle="AI vs. Clinician agreement, rolling monthly" action={<span className="success-badge">+8.9 pts YTD</span>} to="/learning#performance">
         <div className="chart tall"><ResponsiveContainer><AreaChart data={trend12} margin={{ top: 8, right: 12, bottom: 0, left: -15 }}><defs><linearGradient id="blueFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={chartBlue} stopOpacity=".28"/><stop offset="1" stopColor={chartBlue} stopOpacity="0"/></linearGradient></defs><CartesianGrid stroke={gridStyle} strokeDasharray="4 4"/><XAxis dataKey="month" tick={tickStyle} tickLine={false} axisLine={false}/><YAxis domain={[78,92]} ticks={[78,82,86,92]} tick={tickStyle} tickLine={false} axisLine={false}/><Tooltip/><Area type="monotone" dataKey="rate" stroke={chartBlue} strokeWidth={2.5} fill="url(#blueFade)" dot={{ r: 3.5, fill: "#0F1B2D", strokeWidth: 2 }}/></AreaChart></ResponsiveContainer></div>
       </Panel>
-      <Panel title="Discrepancy Breakdown" subtitle="By ECG category this month">
+      <Panel title="Discrepancy Breakdown" subtitle="By ECG category this month" to="/learning#recent-learning">
         <div className="chart tall"><ResponsiveContainer><BarChart data={discrepancyData} layout="vertical" margin={{ top: 8, right: 18, left: 16, bottom: 0 }}><CartesianGrid stroke={gridStyle} strokeDasharray="4 4" horizontal={false}/><XAxis type="number" domain={[0,20]} tick={tickStyle} axisLine={false} tickLine={false}/><YAxis type="category" dataKey="name" width={92} tick={tickStyle} axisLine={false} tickLine={false}/><Tooltip/><Bar dataKey="value" fill="#EF4444" radius={[0,4,4,0]} barSize={10}/></BarChart></ResponsiveContainer></div>
       </Panel>
     </div>
     <Panel title="Today’s Expert Review Workload" subtitle="Your personal submissions only" action={<Link className="text-link" to="/cases">View all →</Link>}>
       <div className="clinician-today-workload">
-        <Link to="/cases"><span className="icon-chip amber"><Clock3 size={19}/></span><div><small>AWAITING EXPERT REVIEW</small><strong>{awaitingReviews.length}</strong><p>{awaitingReviews[0] ? `${awaitingReviews[0].caseItem.patientId} · ${awaitingReviews[0].caseItem.priority.toUpperCase()} priority` : "No pending submissions"}</p></div><b>Track →</b></Link>
-        <Link to="/cases"><span className="icon-chip green"><CheckCircle2 size={19}/></span><div><small>REVIEWED</small><strong>{completedReviews.length}</strong><p>{completedReviews[0] ? `${completedReviews[0].caseItem.patientId} · Feedback ready` : "No completed reviews yet"}</p></div><b>Open →</b></Link>
+        <Link to="/cases#under-review"><span className="icon-chip amber"><Clock3 size={19}/></span><div><small>AWAITING EXPERT REVIEW</small><strong>{awaitingReviews.length}</strong><p>{awaitingReviews[0] ? `${awaitingReviews[0].caseItem.patientId} · ${awaitingReviews[0].caseItem.priority.toUpperCase()} priority` : "No pending submissions"}</p></div><b>Track →</b></Link>
+        <Link to="/cases#reviewed"><span className="icon-chip green"><CheckCircle2 size={19}/></span><div><small>REVIEWED</small><strong>{completedReviews.length}</strong><p>{completedReviews[0] ? `${completedReviews[0].caseItem.patientId} · Feedback ready` : "No completed reviews yet"}</p></div><b>Open →</b></Link>
       </div>
     </Panel>
     <ClinicianRecentCases submissions={submissions}/>
@@ -431,19 +447,19 @@ function ExpertDashboard({ submissions }: { submissions: ClinicianReviewSubmissi
     <PageHeader title="Expert Review Overview" subtitle="Cardiology adjudication workspace · High-priority discrepancies first" actions={<Link className="button primary" to="/review"><ClipboardList size={16}/>Open Review Queue</Link>}/>
     <div className="role-context-banner"><span><Stethoscope size={18}/></span><div><strong>Expert reviewer view</strong><p>Focused on discrepancy adjudication, clinical feedback, and hospital-wide quality improvement. Upload and private learning tools are hidden.</p></div></div>
     <div className="kpi-grid">
-      <KpiCard icon={ClipboardList} tone="amber" value={String(allAwaiting.length)} label="Awaiting Expert Review" delta={`${submittedAwaiting.length} new`} note="Matches the review queue"/>
-      <KpiCard icon={AlertTriangle} tone="red" value={String(highPriorityCount)} label="High Priority" delta="Risk sorted" note="Target response: ≤15 min"/>
-      <KpiCard icon={Clock3} tone="blue" value="18 min" label="Median Turnaround" delta="↓ 12%" note="Within service target"/>
-      <KpiCard icon={CheckCircle2} tone="green" value={String(reviewedCount)} label="Expert Reviewed" delta="Completed" note="Matches the review queue"/>
+      <KpiCard icon={ClipboardList} tone="amber" value={String(allAwaiting.length)} label="Awaiting Expert Review" delta={`${submittedAwaiting.length} new`} note="Matches the review queue" to="/review#pending"/>
+      <KpiCard icon={AlertTriangle} tone="red" value={String(highPriorityCount)} label="High Priority" delta="Risk sorted" note="Target response: ≤15 min" to="/review#pending"/>
+      <KpiCard icon={Clock3} tone="blue" value="18 min" label="Median Turnaround" delta="↓ 12%" note="Within service target" to="/analytics#review-turnaround"/>
+      <KpiCard icon={CheckCircle2} tone="green" value={String(reviewedCount)} label="Expert Reviewed" delta="Completed" note="Matches the review queue" to="/review#completed"/>
     </div>
     <div className="expert-dashboard-grid">
-      <Panel title="Priority Review Queue" subtitle="Cases ordered by clinical risk and elapsed time" action={<Link className="text-link" to="/review">View board →</Link>}>
-        <div className="expert-priority-list">{priorityCases.map((item,index)=><Link to="/review" key={item.id}><span className="queue-rank">{index + 1}</span><div><strong className="id-link">{item.patientId}</strong><p>{item.clinicianDx} <span>vs.</span> {item.aiDx}</p></div><PriorityBadge priority={item.priority}/><small><Clock3 size={13}/>{item.elapsed}</small></Link>)}</div>
+      <Panel title="Priority Review Queue" subtitle="Cases ordered by clinical risk and elapsed time" action={<Link className="text-link" to="/review#pending">View board →</Link>} to="/review#pending">
+        <div className="expert-priority-list">{priorityCases.map((item,index)=><Link to="/review#pending" key={item.id}><span className="queue-rank">{index + 1}</span><div><strong className="id-link">{item.patientId}</strong><p>{item.clinicianDx} <span>vs.</span> {item.aiDx}</p></div><PriorityBadge priority={item.priority}/><small><Clock3 size={13}/>{item.elapsed}</small></Link>)}</div>
       </Panel>
       <Panel title="Today’s Workload" subtitle="Same two states as the expert review queue">
         <div className="expert-workload-grid">
-          <Link to="/review" className="awaiting"><span><Clock3 size={19}/></span><small>YET TO REVIEW</small><strong>{allAwaiting.length}</strong><p>Severity ordered · {highPriorityCount} high priority</p><b>Open queue →</b></Link>
-          <Link to="/review" className="reviewed"><span><CheckCircle2 size={19}/></span><small>EXPERT REVIEWED</small><strong>{reviewedCount}</strong><p>Completed adjudications and feedback</p><b>View completed →</b></Link>
+          <Link to="/review#pending" className="awaiting"><span><Clock3 size={19}/></span><small>YET TO REVIEW</small><strong>{allAwaiting.length}</strong><p>Severity ordered · {highPriorityCount} high priority</p><b>Open queue →</b></Link>
+          <Link to="/review#completed" className="reviewed"><span><CheckCircle2 size={19}/></span><small>EXPERT REVIEWED</small><strong>{reviewedCount}</strong><p>Completed adjudications and feedback</p><b>View completed →</b></Link>
         </div>
         <div className="expert-guardrail"><ShieldCheck size={18}/><div><strong>Clinical authority preserved</strong><p>Expert adjudications support quality improvement. Treating clinicians retain responsibility for patient care.</p></div></div>
       </Panel>
@@ -453,7 +469,7 @@ function ExpertDashboard({ submissions }: { submissions: ClinicianReviewSubmissi
 
 function ClinicianRecentCases({ submissions }: { submissions: ClinicianReviewSubmission[] }) {
   const recent = [...submissions].sort((a,b) => Math.max(b.reviewedSort || 0,b.finalizedSort || 0,b.submittedSort) - Math.max(a.reviewedSort || 0,a.finalizedSort || 0,a.submittedSort)).slice(0,5);
-  return <Panel title="My Recent Cases" subtitle="Your latest submissions, AI decisions, and expert-review updates" action={<Link className="text-link" to="/cases">View all →</Link>} className="table-panel">
+  return <Panel title="My Recent Cases" subtitle="Your latest submissions, AI decisions, and expert-review updates" action={<Link className="text-link" to="/cases">View all →</Link>} className="table-panel" to="/cases">
     <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Your Diagnosis</th><th>AI Reading</th><th>Expert Status</th><th>Latest Activity</th></tr></thead>
       <tbody>{recent.map(item => <tr key={item.id}><td>{item.status !== "awaiting" ? <Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link> : <span className="mono">{item.caseItem.patientId}</span>}</td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td>{item.status === "reviewed" ? <span className="review-state reviewed"><CheckCircle2 size={13}/>Expert reviewed</span> : item.status === "finalized" ? <span className={`review-state ${item.finalizedDecision === "clinician-maintained" ? "maintained" : "accepted"}`}>{item.finalizedDecision === "clinician-maintained" ? <Stethoscope size={13}/> : <BrainCircuit size={13}/>} {item.finalizedDecision === "clinician-maintained" ? "Clinician maintained" : "AI accepted"}</span> : <span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span>}</td><td>{item.status === "reviewed" ? item.reviewedAt : item.status === "finalized" ? item.finalizedAt : item.submittedAt}</td></tr>)}</tbody></table></div>
   </Panel>;
@@ -476,19 +492,19 @@ function CasesPage({ openUpload, role, submissions }: { openUpload: () => void; 
   if (role === "expert") return <>
     <PageHeader title="Reviewed ECG Cases" subtitle="Expert-adjudicated cases across WRHN · Most recently reviewed first"/>
     <div className="review-scope-note"><CheckCircle2 size={16}/><span>This archive contains completed expert reviews only. Cases awaiting adjudication remain in the Review Queue.</span></div>
-    <Panel title="Latest Expert Reviews" subtitle={`${reviewed.length} completed cases`} className="table-panel"><ReviewedSubmissionTable items={reviewed} expertView/></Panel>
+    <Panel id="reviewed" title="Latest Expert Reviews" subtitle={`${reviewed.length} completed cases`} className="table-panel"><ReviewedSubmissionTable items={reviewed} expertView/></Panel>
   </>;
   return <>
     <PageHeader title="My ECG Cases" subtitle="Your submissions only · Ordered by latest activity" actions={<button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button>}/>
     <div className="case-section-stack">
-      <Panel title="Clinician-Finalized Cases" subtitle="AI accepted or clinician interpretation maintained · Read-only and excluded from expert review" action={<span className="count-chip blue">{finalized.length}</span>} className="table-panel">
+      <Panel id="clinician-finalized" title="Clinician-Finalized Cases" subtitle="AI accepted or clinician interpretation maintained · Read-only and excluded from expert review" action={<span className="count-chip blue">{finalized.length}</span>} className="table-panel">
         {finalized.length > 0 ? <AiAcceptedSubmissionTable items={finalized}/> : <div className="empty-review-column"><BrainCircuit size={25}/><strong>No clinician-finalized cases yet</strong><p>Cases appear here after you accept the AI reading or maintain your interpretation.</p></div>}
       </Panel>
-      <Panel title="Under Expert Review" subtitle="Your latest submissions awaiting adjudication" action={<span className="count-chip amber">{awaiting.length}</span>}>
+      <Panel id="under-review" title="Under Expert Review" subtitle="Your latest submissions awaiting adjudication" action={<span className="count-chip amber">{awaiting.length}</span>}>
         <div className="pending-case-grid">{awaiting.map(item => <article className="pending-case" key={item.id}><header><span className="mono">{item.caseItem.patientId}</span><PriorityBadge priority={item.caseItem.priority}/></header><div><span>YOUR INPUT<strong>{item.caseItem.clinicianDx}</strong></span><span>AI READING<strong>{item.caseItem.aiDx}</strong></span><span>MATCH RATING<strong>{item.matchRating ?? "—"}{item.matchRating !== undefined && "%"}</strong></span><span>PATIENT CONTEXT<strong>{item.ageRange || `${item.caseItem.age} years`} · {item.sexLabel || item.caseItem.sex} · {item.caseItem.department}</strong></span></div>{item.reason && <p className="pending-reason"><b>Reason:</b> {item.reason}</p>}<footer><span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span><time>{item.submittedAt}</time></footer></article>)}</div>
         {awaiting.length === 0 && <div className="empty-review-column"><CheckCircle2 size={25}/><strong>No cases under review</strong><p>New expert-review submissions will appear here.</p></div>}
       </Panel>
-      <Panel title="Reviewed Cases" subtitle="Expert feedback and teaching points · Most recently reviewed first" action={<span className="count-chip green">{reviewed.length}</span>} className="table-panel">
+      <Panel id="reviewed" title="Reviewed Cases" subtitle="Expert feedback and teaching points · Most recently reviewed first" action={<span className="count-chip green">{reviewed.length}</span>} className="table-panel">
         <ReviewedSubmissionTable items={reviewed}/>
       </Panel>
     </div>
@@ -553,7 +569,7 @@ function ReviewPage({ submissions, onReviewCompleted }: { submissions: Clinician
   return <>
     <PageHeader title="Expert Review Queue" subtitle="Only cases escalated for expert adjudication · Highest severity first" actions={<select aria-label="Department filter"><option>All Departments</option><option>Emergency</option><option>Cardiology</option></select>}/>
     <div className="review-scope-note"><ShieldCheck size={16}/><span>Clinician-only decisions and accepted AI suggestions are excluded. Completed means an expert submitted a final adjudication.</span></div>
-    <div className="kanban review-kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((caseItem,index)=><button key={caseItem.id} className={`case-card ${selected?.caseItem.id === caseItem.id ? "selected" : ""}`} onClick={()=>col.key === "complete" ? navigate(`/cases/${encodeURIComponent(caseItem.patientId)}`) : setSelected({caseItem, completed:false})}><QueueCaseDetails caseItem={caseItem} submission={submissions.find(item=>item.caseItem.id===caseItem.id)} completed={col.key==="complete"} reviewer={index%2 ? "Dr. Patel" : "Dr. Chen"}/></button>)}</section>)}</div>
+    <div className="kanban review-kanban">{columns.map(col=><section id={col.key === "complete" ? "completed" : "pending"} key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((caseItem,index)=><button key={caseItem.id} className={`case-card ${selected?.caseItem.id === caseItem.id ? "selected" : ""}`} onClick={()=>col.key === "complete" ? navigate(`/cases/${encodeURIComponent(caseItem.patientId)}`) : setSelected({caseItem, completed:false})}><QueueCaseDetails caseItem={caseItem} submission={submissions.find(item=>item.caseItem.id===caseItem.id)} completed={col.key==="complete"} reviewer={index%2 ? "Dr. Patel" : "Dr. Chen"}/></button>)}</section>)}</div>
     {selected && <ExpertReviewDrawer key={selected.caseItem.id} submission={submissions.find(item=>item.caseItem.id===selected.caseItem.id)} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={(finalDx,takeaway,expertNotes)=>{ setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id]); onReviewCompleted(selected.caseItem.id, finalDx, takeaway, expertNotes); }}/>}
   </>;
 }
@@ -606,11 +622,11 @@ function LearningPage({ submissions }: { submissions: ClinicianReviewSubmission[
     <PageHeader title="Learning Dashboard" subtitle="Dr. Adaeze Nkemdirim · Private · Updated daily" actions={<span className="success-badge">↗ Concordance improved 12% this quarter</span>}/>
     <div className="celebration"><Award size={35}/><div><strong>Outstanding Progress, Dr. Nkemdirim!</strong><p>You have completed {monthlyCaseCount} learning cases this month, including {clinicianFinalized.length} clinician-finalized comparison{clinicianFinalized.length === 1 ? "" : "s"} in this session. Your concordance rate is 88%.</p></div></div>
     <div className="kpi-grid"><KpiCard icon={CheckCircle2} tone="green" value="88%" label="Concordance Rate" delta="↗ 12%" note="↑ 12% from last quarter"/><KpiCard icon={Sparkles} tone="blue" value="+4.2 pts" label="Monthly Improvement" delta="↗ 14%" note="Strongest in Conduction"/><KpiCard icon={ClipboardList} tone="purple" value={String(monthlyCaseCount)} label="Learning Cases" delta={clinicianFinalized.length ? `+${clinicianFinalized.length} new` : "↗ 8%"} note={`This month · ${312 + clinicianFinalized.length} lifetime`}/><KpiCard icon={Star} tone="amber" value="18 days" label="Learning Streak" delta="↗ 0%" note="Keep going!"/></div>
-    <div className="learning-charts">
+    <div id="performance" className="learning-charts">
       <Panel title="Performance by ECG Type" subtitle="Your accuracy vs. department average"><div className="chart radar"><ResponsiveContainer><RadarChart data={radar} outerRadius="72%"><PolarGrid stroke={gridStyle}/><PolarAngleAxis dataKey="name" tick={tickStyle}/><Radar name="You" dataKey="you" stroke={chartBlue} fill={chartBlue} fillOpacity={.25}/><Radar name="Dept. Avg." dataKey="dept" stroke="#94A3B8" fill="#CBD5E1" fillOpacity={.15} strokeDasharray="4 3"/><Legend/></RadarChart></ResponsiveContainer></div></Panel>
       <Panel title="Personal Concordance Trend" subtitle="Your improvement over the last 6 months"><div className="chart radar"><ResponsiveContainer><AreaChart data={personalTrend} margin={{top:10,right:12,left:-12,bottom:0}}><defs><linearGradient id="greenFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={green} stopOpacity=".28"/><stop offset="1" stopColor={green} stopOpacity="0"/></linearGradient></defs><CartesianGrid stroke={gridStyle} strokeDasharray="4 4"/><XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false}/><YAxis domain={[70,95]} ticks={[70,77,84,95]} tick={tickStyle} axisLine={false} tickLine={false}/><Tooltip/><Area type="monotone" dataKey="rate" stroke={green} strokeWidth={2.5} fill="url(#greenFade)" dot={{r:4,fill:"#0F1B2D",stroke:green,strokeWidth:2}}/></AreaChart></ResponsiveContainer></div></Panel>
     </div>
-    <Panel title="Recent Learning Activity" subtitle="Expert feedback and clinician-accepted AI comparisons" className="learning-list">
+    <Panel id="recent-learning" title="Recent Learning Activity" subtitle="Expert feedback and clinician-accepted AI comparisons" className="learning-list">
       {clinicianFinalized.map(item => { const maintained = item.finalizedDecision === "clinician-maintained"; return <article className="learning-row accepted-learning-row" key={item.id}><div className="learning-meta"><Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link><span className={`category ${maintained ? "maintained-category" : "ai-category"}`}>{maintained ? "Clinician maintained" : "AI accepted"}</span><span>Finalized {item.finalizedAt}</span></div><div className="dx-compare"><span>Your Dx: <b>{item.caseItem.clinicianDx}</b></span><span>{maintained ? "AI Comparison" : "Accepted AI Dx"}: <b>{item.caseItem.aiDx}</b></span></div><p className={`takeaway ${maintained ? "maintained-learning" : "ai-learning"}`}>{maintained ? <Stethoscope size={16}/> : <BrainCircuit size={16}/>}<strong>Reflection:</strong>Review the {item.matchRating}% clinician/AI match and the model’s detected features in the saved case record.</p></article>; })}
       {learningCases.map(c=><article className="learning-row" key={c.caseId}><div className="learning-meta">{reviewedByPatientId.has(c.caseId) ? <Link className="id-link" to={`/cases/${c.caseId}`}>{c.caseId}</Link> : <b className="id-link">{c.caseId}</b>}<span className="category">{c.category}</span><span>Reviewed {c.reviewedAt}</span></div><div className="dx-compare"><span>Your Dx: <b>{c.yourDx}</b></span><span>Expert Final Dx: <b>{c.expertFinalDx}</b></span></div><p className="takeaway"><BookOpen size={16}/><strong>Key Takeaway:</strong>{c.keyTakeaway}</p></article>)}
     </Panel>
@@ -624,7 +640,7 @@ function AnalyticsPage() {
   return <>
     <PageHeader title="Analytics" subtitle="Hospital-wide aggregate metrics · No individual physician data" actions={<><select><option>Last 6 Months</option><option>Last 12 Months</option></select><button className="button secondary"><Filter size={15}/>Export</button></>}/>
     <div className="privacy-banner"><ShieldCheck size={16}/>Aggregate quality-improvement reporting only. No individual clinician performance is shown.</div>
-    <div className="kpi-grid"><KpiCard icon={CheckCircle2} tone="green" value="88.1%" label="Overall Agreement Rate" delta="↗ 3.4%" note="All departments combined"/><KpiCard icon={AlertTriangle} tone="amber" value="4.8%" label="Significant Discrepancies" delta="↓ 1.2%" note="↓ 1.2 pts from last period"/><KpiCard icon={Clock3} tone="blue" value="23 min" label="Avg. Review Turnaround" delta="↗ 18%" note="Target: ≤30 min"/><KpiCard icon={Activity} tone="purple" value="1,847" label="Total ECGs Reviewed" delta="↗ 6%" note="This reporting period"/></div>
+    <div id="review-turnaround" className="kpi-grid"><KpiCard icon={CheckCircle2} tone="green" value="88.1%" label="Overall Agreement Rate" delta="↗ 3.4%" note="All departments combined"/><KpiCard icon={AlertTriangle} tone="amber" value="4.8%" label="Significant Discrepancies" delta="↓ 1.2%" note="↓ 1.2 pts from last period"/><KpiCard icon={Clock3} tone="blue" value="23 min" label="Avg. Review Turnaround" delta="↗ 18%" note="Target: ≤30 min"/><KpiCard icon={Activity} tone="purple" value="1,847" label="Total ECGs Reviewed" delta="↗ 6%" note="This reporting period"/></div>
     <div className="analytics-grid">
       <Panel title="Department Performance Heatmap" subtitle="Agreement, minor, and major discrepancy rates"><div className="chart heatmap"><ResponsiveContainer><BarChart data={dept} layout="vertical" margin={{top:8,right:18,left:12,bottom:0}}><XAxis hide type="number" domain={[0,100]}/><YAxis type="category" dataKey="name" width={94} tick={tickStyle} axisLine={false} tickLine={false}/><Tooltip/><Legend/><Bar name="Agreement" dataKey="a" stackId="x" fill="#00C853" radius={[6,0,0,6]}/><Bar name="Minor Diff." dataKey="m" stackId="x" fill="#FFB800"/><Bar name="Major Diff." dataKey="x" stackId="x" fill="#FF3547" radius={[0,6,6,0]}/></BarChart></ResponsiveContainer></div></Panel>
       <Panel title="Diagnosis Distribution" subtitle="All ECGs this period"><div className="donut-wrap"><div className="chart donut"><ResponsiveContainer><PieChart><Pie data={dist} dataKey="value" innerRadius={52} outerRadius={80} paddingAngle={2}>{dist.map(d=><Cell key={d.name} fill={d.color}/>)}</Pie><Tooltip/></PieChart></ResponsiveContainer></div><div className="donut-legend">{dist.map(d=><div key={d.name}><span><i style={{background:d.color}}/>{d.name}</span><b>{d.value}%</b></div>)}</div></div></Panel>

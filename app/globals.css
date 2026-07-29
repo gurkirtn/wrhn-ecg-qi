@@ -80,6 +80,13 @@ body{background-image:radial-gradient(circle at 70% -10%,rgba(49,111,246,.09),tr
 .metric{font-size:28px;margin-top:10px;color:#F7FAFC}
 .metric-label,.kpi-note{color:#91A3BB}
 .kpi-note{border-color:#26364D;margin-top:12px;padding-top:11px}
+.kpi-link{display:block;cursor:pointer;transition:transform .16s,border-color .16s,background .16s,box-shadow .16s}
+.kpi-link:hover,.kpi-link:focus-visible{transform:translateY(-2px);border-color:#4F8CFF;background:#12233A;box-shadow:0 12px 30px rgba(0,0,0,.18)}
+.kpi-note{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pane-link-cue{color:#75AAFF;font-size:10px;font-weight:800;white-space:nowrap}
+.panel-link{cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}
+.panel-link:hover,.panel-link:focus-visible{border-color:#3E6FA9;background:#101F33;box-shadow:0 12px 30px rgba(0,0,0,.16)}
+#under-review,#reviewed,#clinician-finalized,#pending,#completed,#performance,#recent-learning,#review-turnaround{scroll-margin-top:84px}
 .dashboard-charts,.learning-charts,.analytics-grid,.settings-grid{gap:14px;margin-bottom:18px}
 .success-badge{background:#0D2C21;border-color:#236C4A;color:#78E8A8}
 .table-wrap{border-top:1px solid #26364D;max-height:470px}
