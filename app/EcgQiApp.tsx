@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity, AlertTriangle, Award, BarChart3, Bell, BookOpen, BrainCircuit, Check,
   CheckCircle2, ChevronDown, ClipboardList, Clock3, Filter, GraduationCap, HeartPulse,
-  LayoutDashboard, LogOut, Menu, MoreHorizontal, Search, Settings, ShieldCheck, Sparkles, Star,
+  LayoutDashboard, LogOut, Menu, Search, Settings, ShieldCheck, Sparkles, Star,
   Stethoscope, Upload, UserRound, X, Zap,
 } from "lucide-react";
 import {
@@ -13,8 +13,8 @@ import {
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import { BrowserRouter, Link, MemoryRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { aiPredictions, cases, discrepancyData, learningCases, personalTrend, trend12 } from "./data";
-import type { Case, Priority, Verdict } from "./types";
+import { cases, discrepancyData, learningCases, personalTrend, trend12 } from "./data";
+import type { Case, Priority } from "./types";
 
 type WorkspaceRole = "clinician" | "expert";
 type MockAccount = {
@@ -27,13 +27,16 @@ type MockAccount = {
 };
 type ClinicianReviewSubmission = {
   id: string;
-  ownerId: MockAccount["id"];
+  ownerId: MockAccount["id"] | "system";
   caseItem: Case;
   status: "awaiting" | "reviewed";
   submittedAt: string;
+  submittedSort: number;
   reviewedAt?: string;
+  reviewedSort?: number;
   expertName?: string;
   finalDx?: string;
+  expertNotes?: string;
   takeaway?: string;
 };
 
@@ -74,10 +77,10 @@ const mockEscalatedCase: Case = {
   elapsed: "Just now",
 };
 const seededClinicianSubmissions: ClinicianReviewSubmission[] = [
-  { id: "submission-wrhn-00482", ownerId: "dual", caseItem: mockEscalatedCase, status: "awaiting", submittedAt: "Today · 10:04" },
-  { id: "submission-pt-20710", ownerId: "dual", caseItem: { ...cases[2], id: "case-pt-20710", patientId: "PT-20710", clinicianDx: "Sinus Tachycardia", aiDx: "Atrial Flutter", priority: "high" }, status: "reviewed", submittedAt: "Dec 18 · 09:14", reviewedAt: "Dec 18 · 10:02", expertName: "Dr. Maya Chen", finalDx: "Atrial Flutter", takeaway: "Flutter waves at 300 bpm with 2:1 block can mimic sinus tachycardia — inspect V1 and inferior leads carefully." },
-  { id: "submission-pt-20901", ownerId: "clinician", caseItem: { ...cases[4], id: "case-pt-20901", patientId: "PT-20901", clinicianDx: "STEMI", aiDx: "STEMI with LVH", priority: "critical" }, status: "awaiting", submittedAt: "Today · 09:41" },
-  { id: "submission-pt-20877", ownerId: "clinician", caseItem: { ...cases[10], id: "case-pt-20877", patientId: "PT-20877", clinicianDx: "Normal Sinus Rhythm", aiDx: "Posterior MI", priority: "high" }, status: "reviewed", submittedAt: "Yesterday · 15:20", reviewedAt: "Yesterday · 15:48", expertName: "Dr. Samir Patel", finalDx: "Posterior MI", takeaway: "Reciprocal ST depression in V1–V3 with tall R waves should prompt posterior-lead assessment." },
+  { id: "submission-wrhn-00482", ownerId: "dual", caseItem: mockEscalatedCase, status: "awaiting", submittedAt: "Today · 10:04", submittedSort: 400 },
+  { id: "submission-pt-20710", ownerId: "dual", caseItem: { ...cases[2], id: "case-pt-20710", patientId: "PT-20710", clinicianDx: "Sinus Tachycardia", aiDx: "Atrial Flutter", priority: "high" }, status: "reviewed", submittedAt: "Dec 18 · 09:14", submittedSort: 300, reviewedAt: "Dec 18 · 10:02", reviewedSort: 350, expertName: "Dr. Maya Chen", finalDx: "Atrial Flutter", expertNotes: "Regular atrial activity with a 2:1 ventricular response supports atrial flutter rather than sinus tachycardia.", takeaway: "Flutter waves at 300 bpm with 2:1 block can mimic sinus tachycardia — inspect V1 and inferior leads carefully." },
+  { id: "submission-pt-20901", ownerId: "clinician", caseItem: { ...cases[4], id: "case-pt-20901", patientId: "PT-20901", clinicianDx: "STEMI", aiDx: "STEMI with LVH", priority: "critical" }, status: "awaiting", submittedAt: "Today · 09:41", submittedSort: 380 },
+  { id: "submission-pt-20877", ownerId: "clinician", caseItem: { ...cases[10], id: "case-pt-20877", patientId: "PT-20877", clinicianDx: "Normal Sinus Rhythm", aiDx: "Posterior MI", priority: "high" }, status: "reviewed", submittedAt: "Yesterday · 15:20", submittedSort: 200, reviewedAt: "Yesterday · 15:48", reviewedSort: 250, expertName: "Dr. Samir Patel", finalDx: "Posterior MI", expertNotes: "Reciprocal anterior changes and tall R waves are most consistent with posterior myocardial infarction.", takeaway: "Reciprocal ST depression in V1–V3 with tall R waves should prompt posterior-lead assessment." },
 ];
 
 function Logo({ compact = false }: { compact?: boolean }) {
@@ -116,8 +119,14 @@ function Shell() {
   const [reviewSubmissions, setReviewSubmissions] = useState<ClinicianReviewSubmission[]>(seededClinicianSubmissions);
   if (!account) return <MockLogin onLogin={nextAccount => { setAccount(nextAccount); setRole(nextAccount.roles[0]); navigate("/"); }}/>;
   const myReviewSubmissions = reviewSubmissions.filter(item => item.ownerId === account.id);
-  const addExpertSubmission = (caseItem: Case) => setReviewSubmissions(items => items.some(item => item.ownerId === account.id && item.caseItem.id === caseItem.id) ? items : [{ id: `submission-${account.id}-${caseItem.id}`, ownerId: account.id, caseItem, status: "awaiting", submittedAt: "Just now" }, ...items]);
-  const completeExpertSubmission = (caseId: string, finalDx: string, takeaway: string) => setReviewSubmissions(items => items.map(item => item.caseItem.id === caseId ? { ...item, status: "reviewed", reviewedAt: "Just now", expertName: account.name, finalDx, takeaway } : item));
+  const addExpertSubmission = (caseItem: Case) => setReviewSubmissions(items => items.some(item => item.ownerId === account.id && item.caseItem.id === caseItem.id) ? items : [{ id: `submission-${account.id}-${caseItem.id}`, ownerId: account.id, caseItem, status: "awaiting", submittedAt: "Just now", submittedSort: Date.now() }, ...items]);
+  const completeExpertSubmission = (caseId: string, finalDx: string, takeaway: string, expertNotes: string) => setReviewSubmissions(items => {
+    const reviewedAt = Date.now();
+    if (items.some(item => item.caseItem.id === caseId)) return items.map(item => item.caseItem.id === caseId ? { ...item, status: "reviewed", reviewedAt: "Just now", reviewedSort: reviewedAt, expertName: account.name, finalDx, takeaway, expertNotes } : item);
+    const caseItem = cases.find(item => item.id === caseId);
+    return caseItem ? [{ id: `submission-system-${caseId}`, ownerId: "system", caseItem, status: "reviewed", submittedAt: caseItem.acquiredAt, submittedSort: reviewedAt - 1, reviewedAt: "Just now", reviewedSort: reviewedAt, expertName: account.name, finalDx, takeaway, expertNotes }, ...items] : items;
+  });
+  const visibleCaseSubmission = reviewSubmissions.find(item => item.caseItem.patientId === decodeURIComponent(location.pathname.split("/").pop() || "") && item.status === "reviewed" && (role === "expert" || item.ownerId === account.id));
   const activeNav = role === "expert" ? expertNav : clinicianNav;
   const switchRole = (nextRole: WorkspaceRole) => {
     setRole(nextRole);
@@ -162,8 +171,8 @@ function Shell() {
         <main className="content">
           <Routes>
             <Route path="/" element={role === "expert" ? <ExpertDashboard/> : <Dashboard submissions={myReviewSubmissions} openUpload={() => setUploadOpen(true)}/>}/>
-            <Route path="/cases" element={<CasesPage openUpload={() => setUploadOpen(true)} canUpload={role === "clinician"}/>}/>
-            <Route path="/cases/:id" element={<CaseDetail/>}/>
+            <Route path="/cases" element={<CasesPage role={role} submissions={role === "clinician" ? myReviewSubmissions : reviewSubmissions} openUpload={() => setUploadOpen(true)}/>}/>
+            <Route path="/cases/:id" element={visibleCaseSubmission ? <CaseDetail submission={visibleCaseSubmission}/> : <Navigate to="/cases" replace/>}/>
             <Route path="/review" element={role === "expert" ? <ReviewPage submissions={reviewSubmissions} onReviewCompleted={completeExpertSubmission}/> : <Navigate to="/" replace/>}/>
             <Route path="/my-reviews" element={role === "clinician" ? <MyExpertReviews submissions={myReviewSubmissions}/> : <Navigate to="/" replace/>}/>
             <Route path="/learning" element={role === "clinician" ? <LearningPage/> : <Navigate to="/" replace/>}/>
@@ -281,10 +290,6 @@ function Panel({ title, subtitle, action, children, className = "" }: { title: s
   return <section className={`card panel ${className}`}><div className="panel-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action}</div>{children}</section>;
 }
 
-function StatusPill({ verdict }: { verdict: Verdict }) {
-  return <span className={`status ${verdict}`}>{verdict === "concordant" ? "Concordant" : verdict === "minor" ? "Minor Diff." : "Major Diff."}</span>;
-}
-
 function PriorityBadge({ priority }: { priority: Priority }) {
   return <span className={`priority ${priority}`}>{priority.toUpperCase()}</span>;
 }
@@ -317,7 +322,7 @@ function Dashboard({ openUpload, submissions }: { openUpload: () => void; submis
         <Link to="/my-reviews"><span className="icon-chip green"><CheckCircle2 size={19}/></span><div><small>REVIEWED</small><strong>{completedReviews.length}</strong><p>{completedReviews[0] ? `${completedReviews[0].caseItem.patientId} · Feedback ready` : "No completed reviews yet"}</p></div><b>Open →</b></Link>
       </div>
     </Panel>
-    <RecentTable rows={cases.slice(0,6)}/>
+    <ClinicianRecentCases submissions={submissions}/>
   </>;
 }
 
@@ -349,22 +354,38 @@ function ExpertDashboard() {
   </>;
 }
 
-function RecentTable({ rows, showDepartment = false }: { rows: Case[]; showDepartment?: boolean }) {
-  return <Panel title={showDepartment ? "All ECG Cases" : "Recent Cases"} action={!showDepartment && <Link className="text-link" to="/cases">View all →</Link>} className="table-panel">
-    <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Clinician Diagnosis</th><th>AI Diagnosis</th>{showDepartment && <th>Department</th>}<th>Status</th><th>Priority</th><th>Time</th></tr></thead>
-      <tbody>{rows.map((c) => <tr key={c.id}><td><Link className="id-link" to={`/cases/${c.patientId}`}>{c.patientId}</Link></td><td>{c.clinicianDx}</td><td>{c.aiDx}</td>{showDepartment && <td>{c.department}</td>}<td><StatusPill verdict={c.verdict}/></td><td><PriorityBadge priority={c.priority}/></td><td>{c.elapsed}</td></tr>)}</tbody></table></div>
+function ClinicianRecentCases({ submissions }: { submissions: ClinicianReviewSubmission[] }) {
+  const recent = [...submissions].sort((a,b) => Math.max(b.reviewedSort || 0,b.submittedSort) - Math.max(a.reviewedSort || 0,a.submittedSort)).slice(0,5);
+  return <Panel title="My Recent Cases" subtitle="Your latest submissions and expert-review updates" action={<Link className="text-link" to="/cases">View all →</Link>} className="table-panel">
+    <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Your Diagnosis</th><th>AI Reading</th><th>Expert Status</th><th>Latest Activity</th></tr></thead>
+      <tbody>{recent.map(item => <tr key={item.id}><td>{item.status === "reviewed" ? <Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link> : <span className="mono">{item.caseItem.patientId}</span>}</td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td>{item.status === "reviewed" ? <span className="review-state reviewed"><CheckCircle2 size={13}/>Reviewed</span> : <span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span>}</td><td>{item.status === "reviewed" ? item.reviewedAt : item.submittedAt}</td></tr>)}</tbody></table></div>
   </Panel>;
 }
 
-function CasesPage({ openUpload, canUpload }: { openUpload: () => void; canUpload: boolean }) {
-  const [search, setSearch] = useState("");
-  const [department, setDepartment] = useState("All Departments");
-  const [status, setStatus] = useState("All Statuses");
-  const filtered = useMemo(() => cases.filter((c) => (!search || `${c.patientId} ${c.clinicianDx} ${c.aiDx}`.toLowerCase().includes(search.toLowerCase())) && (department === "All Departments" || c.department === department) && (status === "All Statuses" || c.verdict === status)), [search, department, status]);
+function ReviewedSubmissionTable({ items, expertView = false }: { items: ClinicianReviewSubmission[]; expertView?: boolean }) {
+  return <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Clinician Input</th><th>AI Reading</th><th>Expert Final</th>{expertView && <th>Department</th>}<th>Reviewed</th></tr></thead>
+    <tbody>{items.map(item => <tr key={item.id}><td><Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link></td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td><span className="review-state reviewed"><CheckCircle2 size={13}/>{item.finalDx}</span></td>{expertView && <td>{item.caseItem.department}</td>}<td>{item.reviewedAt}</td></tr>)}</tbody></table></div>;
+}
+
+function CasesPage({ openUpload, role, submissions }: { openUpload: () => void; role: WorkspaceRole; submissions: ClinicianReviewSubmission[] }) {
+  const reviewed = submissions.filter(item => item.status === "reviewed").sort((a,b) => (b.reviewedSort || 0) - (a.reviewedSort || 0));
+  const awaiting = submissions.filter(item => item.status === "awaiting").sort((a,b) => b.submittedSort - a.submittedSort);
+  if (role === "expert") return <>
+    <PageHeader title="Reviewed ECG Cases" subtitle="Expert-adjudicated cases across WRHN · Most recently reviewed first"/>
+    <div className="review-scope-note"><CheckCircle2 size={16}/><span>This archive contains completed expert reviews only. Cases awaiting adjudication remain in the Review Queue.</span></div>
+    <Panel title="Latest Expert Reviews" subtitle={`${reviewed.length} completed cases`} className="table-panel"><ReviewedSubmissionTable items={reviewed} expertView/></Panel>
+  </>;
   return <>
-    <PageHeader title="ECG Cases" subtitle="Anonymized cases across WRHN Cardiac Services" actions={<>{canUpload && <button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button>}<button className="button secondary"><Filter size={15}/>Filter</button></>}/>
-    <div className="filter-bar card"><label><Search size={16}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search patient ID or diagnosis" aria-label="Search cases"/></label><select value={department} onChange={(e) => setDepartment(e.target.value)} aria-label="Filter by department"><option>All Departments</option>{["Emergency","Cardiology","ICU","Internal Medicine","Surgery"].map(x=><option key={x}>{x}</option>)}</select><select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status"><option>All Statuses</option><option value="concordant">Concordant</option><option value="minor">Minor discrepancy</option><option value="major">Major discrepancy</option></select><span>{filtered.length} cases</span></div>
-    <RecentTable rows={filtered} showDepartment/>
+    <PageHeader title="My ECG Cases" subtitle="Your submissions only · Ordered by latest activity" actions={<button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button>}/>
+    <div className="case-section-stack">
+      <Panel title="Under Expert Review" subtitle="Your latest submissions awaiting adjudication" action={<span className="count-chip amber">{awaiting.length}</span>}>
+        <div className="pending-case-grid">{awaiting.map(item => <article className="pending-case" key={item.id}><header><span className="mono">{item.caseItem.patientId}</span><PriorityBadge priority={item.caseItem.priority}/></header><div><span>YOUR INPUT<strong>{item.caseItem.clinicianDx}</strong></span><span>AI READING<strong>{item.caseItem.aiDx}</strong></span></div><footer><span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span><time>{item.submittedAt}</time></footer></article>)}</div>
+        {awaiting.length === 0 && <div className="empty-review-column"><CheckCircle2 size={25}/><strong>No cases under review</strong><p>New expert-review submissions will appear here.</p></div>}
+      </Panel>
+      <Panel title="Reviewed Cases" subtitle="Expert feedback and teaching points · Most recently reviewed first" action={<span className="count-chip green">{reviewed.length}</span>} className="table-panel">
+        <ReviewedSubmissionTable items={reviewed}/>
+      </Panel>
+    </div>
   </>;
 }
 
@@ -382,39 +403,26 @@ function EcgViewer() {
   </Panel>;
 }
 
-function CaseDetail() {
-  const location = useLocation();
-  const patientId = decodeURIComponent(location.pathname.split("/").pop() || "PT-20839");
-  const selected = cases.find((c) => c.patientId === patientId) ?? cases[0];
-  const seededReviewed = patientId === "PT-20839";
-  const [revealed, setRevealed] = useState(seededReviewed);
-  const [confidence, setConfidence] = useState(70);
-  const [dx, setDx] = useState("Atrial Fibrillation");
-  const [note, setNote] = useState("");
-  const ai = aiPredictions["PT-20839"];
+function CaseDetail({ submission }: { submission: ClinicianReviewSubmission }) {
+  const selected = submission.caseItem;
   return <>
-    <div className="detail-title"><div className="breadcrumbs"><Link to="/cases">ECG Cases</Link><span>›</span><b>{selected.patientId}</b><PriorityBadge priority={selected.priority}/><span className="major-alert"><AlertTriangle size={16}/>Major Discrepancy — Review Required</span></div><div><button className="button primary"><Sparkles size={15}/>Send to Expert Review</button><button className="button secondary"><MoreHorizontal size={16}/>More</button></div></div>
-    <div className="detail-grid">
-      <div><EcgViewer/><Panel title="Patient Information" action={<span className="anonymized"><ShieldCheck size={14}/>Anonymized</span>}><div className="patient-grid">{[["Patient ID",selected.patientId],["Age",`${selected.age} years`],["Sex",selected.sex],["Department",selected.department],["Ordering Physician",selected.orderingPhysician],["HR at Acquisition",`${selected.hrAtAcquisition} bpm`],["Chief Complaint",selected.chiefComplaint],["BP",selected.bp],["Encounter",selected.encounter]].map(([k,v])=><div key={k}><span>{k}</span><strong className={k==="Patient ID"||k==="Encounter"?"mono":""}>{v}</strong></div>)}</div></Panel></div>
-      <aside className="interpretations">
-        <Panel title="Clinician Interpretation" action={<span className="muted">Dr. A. Nkemdirim</span>}>
-          {!revealed ? <form className="read-form" onSubmit={(e)=>{e.preventDefault();setRevealed(true)}}><div className="guardrail"><ShieldCheck size={17}/><span><strong>Your read comes first.</strong> AI remains hidden until submission to protect independent clinical judgment.</span></div><label>Primary diagnosis<select value={dx} onChange={e=>setDx(e.target.value)}><option>Atrial Fibrillation</option><option>Atrial Flutter</option><option>Sinus Tachycardia</option><option>Normal Sinus Rhythm</option><option>STEMI</option></select></label><label>Confidence <b>{confidence}%</b><input type="range" min="0" max="100" value={confidence} onChange={e=>setConfidence(Number(e.target.value))}/></label><label>Clinical rationale<textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Document findings and reasoning"/></label><button className="button primary full" type="submit">Submit independent interpretation</button></form> : <InterpretationContent title={dx} findings={["Irregularly irregular rhythm","Absent P waves","Ventricular rate ~148 bpm","No delta waves identified"]} note={note || "\"Rapid ventricular response with AF, likely new onset.\""} />}
-        </Panel>
-        <Panel title="AI Interpretation" action={<span className="model-chip">Model v2.4 · 99ms</span>} className={!revealed ? "ai-locked" : ""}>
-          {!revealed ? <div className="locked-content"><BrainCircuit size={28}/><strong>AI second read is sealed</strong><p>Submit your interpretation to reveal the simulated decision-support result.</p></div> : <><div className="simulated"><BrainCircuit size={13}/>Simulated prototype output</div><div className="ai-dx-row"><div><span className="eyebrow">PRIMARY DIAGNOSIS</span><h3>{ai.primaryDx}</h3></div><div className="confidence"><span>CONFIDENCE</span><div><i style={{width:`${ai.confidence}%`}}/><b>{ai.confidence}%</b></div></div></div><ul className="findings">{ai.findings.map(x=><li key={x}>{x}</li>)}</ul><p className="explainer">{ai.explanation}</p><p className="decision-note"><ShieldCheck size={14}/>AI is a second reader. Clinicians can override every output.</p></>}
-        </Panel>
+    <div className="detail-title"><div className="breadcrumbs"><Link to="/cases">Reviewed ECG Cases</Link><span>›</span><b>{selected.patientId}</b><PriorityBadge priority={selected.priority}/><span className="reviewed-banner"><CheckCircle2 size={16}/>Expert reviewed {submission.reviewedAt}</span></div></div>
+    <div className="case-record-banner"><ShieldCheck size={18}/><div><strong>Finalized read-only case record</strong><p>This page reflects the submitted clinician interpretation, simulated AI second read, and completed expert adjudication. It cannot be edited.</p></div></div>
+    <div className="detail-grid reviewed-detail">
+      <div><EcgViewer/><Panel title="Case Information" action={<span className="anonymized"><ShieldCheck size={14}/>Anonymized</span>}><div className="patient-grid">{[["Patient ID",selected.patientId],["Age",`${selected.age} years`],["Sex",selected.sex],["Department",selected.department],["Ordering Physician",selected.orderingPhysician],["HR at Acquisition",`${selected.hrAtAcquisition} bpm`],["Submitted",submission.submittedAt],["Reviewed",submission.reviewedAt || "—"],["Encounter",selected.encounter]].map(([key,value])=><div key={key}><span>{key}</span><strong className={key==="Patient ID"||key==="Encounter"?"mono":""}>{value}</strong></div>)}</div></Panel></div>
+      <aside className="interpretations read-only-interpretations">
+        <Panel title="Clinician Input" action={<span className="record-label">SUBMITTED</span>}><div className="record-diagnosis"><span>PRIMARY DIAGNOSIS</span><h3>{selected.clinicianDx}</h3><p>The clinician interpretation was recorded before the AI second read was revealed.</p></div></Panel>
+        <Panel title="AI Reading" action={<span className="model-chip">ECG-AI v2.4 · simulated</span>}><div className="record-diagnosis ai-record"><span>PRIMARY DIAGNOSIS</span><h3>{selected.aiDx}</h3><ul className="findings"><li>Rhythm morphology and interval pattern analyzed</li><li>Confidence-weighted quality-improvement comparison</li><li>Decision-support output only</li></ul></div></Panel>
+        <Panel title="Expert Review" action={<span className="review-state reviewed"><CheckCircle2 size={13}/>Final</span>}><div className="expert-record"><div><span>FINAL DIAGNOSIS</span><h3>{submission.finalDx}</h3><small>{submission.expertName} · {submission.reviewedAt}</small></div><p>{submission.expertNotes}</p></div></Panel>
+        <Panel title="Key Takeaway" action={<BookOpen size={17} className="takeaway-icon"/>}><div className="case-takeaway"><BookOpen size={21}/><p>{submission.takeaway}</p></div></Panel>
       </aside>
     </div>
   </>;
 }
 
-function InterpretationContent({ title, findings, note }: { title: string; findings: string[]; note: string }) {
-  return <><span className="eyebrow">PRIMARY DIAGNOSIS</span><h3>{title}</h3><ul className="findings">{findings.map(x=><li key={x}>{x}</li>)}</ul><p className="quote-note">{note}</p></>;
-}
-
 function MyExpertReviews({ submissions }: { submissions: ClinicianReviewSubmission[] }) {
-  const awaiting = submissions.filter(item => item.status === "awaiting");
-  const reviewed = submissions.filter(item => item.status === "reviewed");
+  const awaiting = submissions.filter(item => item.status === "awaiting").sort((a,b) => b.submittedSort - a.submittedSort);
+  const reviewed = submissions.filter(item => item.status === "reviewed").sort((a,b) => (b.reviewedSort || 0) - (a.reviewedSort || 0));
   const columns = [
     { key: "awaiting", title: "AWAITING EXPERT REVIEW", tone: "amber", items: awaiting },
     { key: "reviewed", title: "REVIEWED", tone: "green", items: reviewed },
@@ -430,7 +438,7 @@ function MyExpertReviews({ submissions }: { submissions: ClinicianReviewSubmissi
       <header className={column.tone}><span>{column.title}</span><b>{column.items.length}</b></header>
       {column.items.length === 0 && <div className="empty-review-column"><CheckCircle2 size={25}/><strong>No cases here</strong><p>Your submitted cases will appear automatically.</p></div>}
       {column.items.map(submission => <article className="case-card clinician-review-card" key={submission.id}>
-        <div><Link className="id-link" to={`/cases/${submission.caseItem.patientId}`}>{submission.caseItem.patientId}</Link><PriorityBadge priority={submission.caseItem.priority}/></div>
+        <div>{submission.status === "reviewed" ? <Link className="id-link" to={`/cases/${submission.caseItem.patientId}`}>{submission.caseItem.patientId}</Link> : <span className="mono">{submission.caseItem.patientId}</span>}<PriorityBadge priority={submission.caseItem.priority}/></div>
         <p>Your diagnosis: <strong>{submission.caseItem.clinicianDx}</strong></p>
         <p>AI comparison: <strong className="blue-text">{submission.caseItem.aiDx}</strong></p>
         {submission.status === "reviewed" ? <>
@@ -442,7 +450,7 @@ function MyExpertReviews({ submissions }: { submissions: ClinicianReviewSubmissi
   </>;
 }
 
-function ReviewPage({ submissions, onReviewCompleted }: { submissions: ClinicianReviewSubmission[]; onReviewCompleted: (caseId: string, finalDx: string, takeaway: string) => void }) {
+function ReviewPage({ submissions, onReviewCompleted }: { submissions: ClinicianReviewSubmission[]; onReviewCompleted: (caseId: string, finalDx: string, takeaway: string, expertNotes: string) => void }) {
   const [selected, setSelected] = useState<{ caseItem: Case; completed: boolean } | null>(null);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const severityRank: Record<Priority, number> = { critical: 4, high: 3, medium: 2, low: 1 };
@@ -463,11 +471,11 @@ function ReviewPage({ submissions, onReviewCompleted }: { submissions: Clinician
     <PageHeader title="Expert Review Queue" subtitle="Only cases escalated for expert adjudication · Highest severity first" actions={<select aria-label="Department filter"><option>All Departments</option><option>Emergency</option><option>Cardiology</option></select>}/>
     <div className="review-scope-note"><ShieldCheck size={16}/><span>Clinician-only decisions and accepted AI suggestions are excluded. Completed means an expert submitted a final adjudication.</span></div>
     <div className="kanban review-kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((c,i)=><button key={c.id} className={`case-card ${selected?.caseItem.id === c.id ? "selected" : ""}`} onClick={()=>setSelected({caseItem:c, completed:col.key === "complete"})}><div><span className="id-link">{c.patientId}</span><PriorityBadge priority={c.priority}/></div><p>Clinician: <strong>{c.clinicianDx}</strong></p><p>AI: <strong className="blue-text">{c.aiDx}</strong></p>{col.key==="complete"&&<p className="final">Expert final: {c.aiDx}<CheckCircle2 size={15}/></p>}<footer><span><Clock3 size={14}/>{c.elapsed}</span>{col.key==="complete"&&<b>{i%2 ? "Dr. Patel" : "Dr. Chen"}</b>}</footer></button>)}</section>)}</div>
-    {selected && <ExpertReviewDrawer key={selected.caseItem.id} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={(finalDx,takeaway)=>{ setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id]); onReviewCompleted(selected.caseItem.id, finalDx, takeaway); }}/>}
+    {selected && <ExpertReviewDrawer key={selected.caseItem.id} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={(finalDx,takeaway,expertNotes)=>{ setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id]); onReviewCompleted(selected.caseItem.id, finalDx, takeaway, expertNotes); }}/>}
   </>;
 }
 
-function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: { caseItem: Case; onClose: () => void; onSubmit: (finalDx: string, takeaway: string) => void; completed?: boolean }) {
+function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: { caseItem: Case; onClose: () => void; onSubmit: (finalDx: string, takeaway: string, expertNotes: string) => void; completed?: boolean }) {
   const [finalDx, setFinalDx] = useState(completed ? caseItem.aiDx : "");
   const [notes, setNotes] = useState(completed ? "Expert adjudication completed after independent waveform review and comparison of the clinician and AI interpretations." : "");
   const [takeaway, setTakeaway] = useState(completed ? "Review rhythm regularity and lead morphology before distinguishing closely related tachyarrhythmias." : "");
@@ -481,7 +489,7 @@ function ExpertReviewDrawer({ caseItem, onClose, onSubmit, completed = false }: 
   const submitReview = (event: React.FormEvent) => {
     event.preventDefault();
     if (!finalDx || !notes || !takeaway) return;
-    onSubmit(finalDx, takeaway);
+    onSubmit(finalDx, takeaway, notes);
     setSubmitted(true);
   };
   return <div className="review-drawer-layer">
