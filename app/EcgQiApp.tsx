@@ -6,6 +6,7 @@ import {
   CheckCircle2, ChevronDown, ClipboardList, Clock3, Filter, GraduationCap, HeartPulse,
   LayoutDashboard, LogOut, Menu, Search, Settings, ShieldCheck, Sparkles, Star,
   Stethoscope, Upload, UserRound, X, Zap,
+  type LucideIcon,
 } from "lucide-react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line,
@@ -17,6 +18,15 @@ import { cases, discrepancyData, learningCases, personalTrend, trend12 } from ".
 import type { Case, Priority } from "./data";
 
 type WorkspaceRole = "clinician" | "expert";
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  section?: string;
+  badge?: string | number;
+};
+
 type MockAccount = {
   id: "clinician" | "expert" | "dual";
   name: string;
@@ -58,14 +68,14 @@ type UploadSubmissionDraft = {
   aiFeatures: string[];
 };
 
-const clinicianNav = [
+const clinicianNav: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "ECG Cases", icon: HeartPulse },
   { href: "/learning", label: "Learning Dashboard", icon: GraduationCap },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-const expertNav = [
+const expertNav: NavItem[] = [
   { href: "/", label: "Expert Overview", icon: LayoutDashboard },
   { href: "/review", label: "Review Queue", icon: ClipboardList, badge: 19 },
   { href: "/cases", label: "ECG Cases", icon: HeartPulse },
@@ -205,7 +215,7 @@ function Shell() {
             <div key={item.href}>
               {item.section && <p className="nav-kicker reports">{item.section}</p>}
               <Link onClick={() => setMobile(false)} className={`nav-item ${location.pathname === item.href || (item.href === "/cases" && location.pathname.startsWith("/cases")) ? "active" : ""}`} to={item.href}>
-                <item.icon size={18}/><span>{item.label}</span>{item.badge && <b>{item.badge}</b>}
+                <item.icon size={18}/><span>{item.label}</span>{item.badge !== undefined && <b>{item.badge}</b>}
               </Link>
             </div>
           ))}
