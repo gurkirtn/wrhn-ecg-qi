@@ -9,6 +9,15 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/app/github-pages.tsx"></script>
+    <script type="module">
+      import { StrictMode, createElement } from "react";
+      import { createRoot } from "react-dom/client";
+      import EcgQiApp from "/app/EcgQiApp.tsx";
+      import "/app/globals.css";
+
+      createRoot(document.getElementById("root")).render(
+        createElement(StrictMode, null, createElement(EcgQiApp, { staticHosting: true })),
+      );
+    </script>
   </body>
 </html>

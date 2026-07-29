@@ -1,4 +1,49 @@
-import type { AiPrediction, Case, LearningCase } from "./types";
+export type Priority = "low" | "medium" | "high" | "critical";
+type CaseStatus = "new" | "waiting" | "review" | "complete";
+type Verdict = "concordant" | "minor" | "major";
+
+export interface Case {
+  id: string;
+  patientId: string;
+  age: number;
+  sex: "Male" | "Female";
+  department: string;
+  orderingPhysician: string;
+  chiefComplaint: string;
+  bp: string;
+  hrAtAcquisition: number;
+  encounter: string;
+  acquiredAt: string;
+  waveform: string;
+  priority: Priority;
+  status: CaseStatus;
+  clinicianDx: string;
+  aiDx: string;
+  verdict: Verdict;
+  elapsed: string;
+}
+
+interface AiPrediction {
+  caseId: string;
+  author: "AI";
+  primaryDx: string;
+  findings: string[];
+  note: string;
+  confidence: number;
+  modelVersion: string;
+  latencyMs: number;
+  explanation: string;
+  isSimulated: boolean;
+}
+
+interface LearningCase {
+  caseId: string;
+  category: string;
+  yourDx: string;
+  expertFinalDx: string;
+  keyTakeaway: string;
+  reviewedAt: string;
+}
 
 const diagnoses = [
   ["Sinus Tachycardia", "Sinus Tachycardia", "concordant"],

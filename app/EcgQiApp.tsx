@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { BrowserRouter, HashRouter, Link, MemoryRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { cases, discrepancyData, learningCases, personalTrend, trend12 } from "./data";
-import type { Case, Priority } from "./types";
+import type { Case, Priority } from "./data";
 
 type WorkspaceRole = "clinician" | "expert";
 type MockAccount = {
