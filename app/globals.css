@@ -274,10 +274,15 @@ tbody tr:hover{background:#152741}
 .review-state.reviewed{color:#73E4A2;background:#0B2A20;border:1px solid #236D4A}
 .review-state.awaiting{color:#FFD37D;background:#302711;border:1px solid #6D5924}
 .review-state.accepted{color:#8EC5FF;background:#102A49;border:1px solid #285F95}
+.review-state.maintained{color:#D6B6FF;background:#25183B;border:1px solid #65418F}
 .reviewed-banner.accepted{color:#8EC5FF;background:#102A49;border-color:#285F95}
+.reviewed-banner.maintained{color:#D6B6FF;background:#25183B;border-color:#65418F}
 .ai-accepted-record{border-color:#285F95;background:#102238}
+.clinician-maintained-record{border-color:#65418F;background:#211832}
 .ai-category{color:#8EC5FF!important;background:#102A49!important;border-color:#285F95!important}
+.maintained-category{color:#D6B6FF!important;background:#25183B!important;border-color:#65418F!important}
 .ai-learning{background:#102238;border-color:#285F95;color:#B8D9FF}
+.maintained-learning{background:#211832;border-color:#65418F;color:#E3CEFF}
 .count-chip{min-width:30px;height:26px;display:grid;place-items:center;border-radius:8px;font-size:11px;font-weight:900}
 .count-chip.amber{color:#FFD37D;background:#302711;border:1px solid #6D5924}.count-chip.green{color:#73E4A2;background:#0B2A20;border:1px solid #236D4A}.count-chip.blue{color:#8EC5FF;background:#102A49;border:1px solid #285F95}
 .case-section-stack{display:grid;gap:16px}

@@ -36,6 +36,7 @@ type ClinicianReviewSubmission = {
   reviewedSort?: number;
   finalizedAt?: string;
   finalizedSort?: number;
+  finalizedDecision?: "ai-accepted" | "clinician-maintained";
   expertName?: string;
   finalDx?: string;
   expertNotes?: string;
@@ -60,7 +61,6 @@ type UploadSubmissionDraft = {
 const clinicianNav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "ECG Cases", icon: HeartPulse },
-  { href: "/my-reviews", label: "My Expert Reviews", icon: ClipboardList },
   { href: "/learning", label: "Learning Dashboard", icon: GraduationCap },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -104,8 +104,12 @@ const mockEscalatedCase: Case = {
 const seededClinicianSubmissions: ClinicianReviewSubmission[] = [
   { id: "submission-wrhn-00482", ownerId: "dual", caseItem: mockEscalatedCase, status: "awaiting", submittedAt: "Today · 10:04", submittedSort: 400 },
   { id: "submission-pt-20710", ownerId: "dual", caseItem: { ...cases[2], id: "case-pt-20710", patientId: "PT-20710", clinicianDx: "Sinus Tachycardia", aiDx: "Atrial Flutter", priority: "high" }, status: "reviewed", submittedAt: "Dec 18 · 09:14", submittedSort: 300, reviewedAt: "Dec 18 · 10:02", reviewedSort: 350, expertName: "Dr. Maya Chen", finalDx: "Atrial Flutter", expertNotes: "Regular atrial activity with a 2:1 ventricular response supports atrial flutter rather than sinus tachycardia.", takeaway: "Flutter waves at 300 bpm with 2:1 block can mimic sinus tachycardia — inspect V1 and inferior leads carefully." },
+  { id: "submission-pt-20698", ownerId: "dual", caseItem: { ...cases[10], id: "case-pt-20698", patientId: "PT-20698", clinicianDx: "Normal Sinus Rhythm", aiDx: "Posterior MI", priority: "high" }, status: "reviewed", submittedAt: "Dec 15 · 08:42", submittedSort: 190, reviewedAt: "Dec 15 · 09:18", reviewedSort: 240, expertName: "Dr. Samir Patel", finalDx: "Posterior MI", expertNotes: "Reciprocal anterior ST depression with tall R waves supports a posterior infarction pattern.", takeaway: "Reciprocal ST depression in V1–V3 with tall R waves is a posterior STEMI equivalent." },
+  { id: "submission-pt-20681", ownerId: "dual", caseItem: { ...cases[8], id: "case-pt-20681", patientId: "PT-20681", clinicianDx: "Left Bundle Branch Block", aiDx: "Ventricular Paced Rhythm", priority: "medium" }, status: "reviewed", submittedAt: "Dec 12 · 11:05", submittedSort: 170, reviewedAt: "Dec 12 · 11:41", reviewedSort: 220, expertName: "Dr. Maya Chen", finalDx: "Ventricular Paced Rhythm", expertNotes: "Subtle pacing spikes preceding each broad QRS establish a ventricular paced rhythm.", takeaway: "Look for subtle pacing spikes before each broad QRS complex." },
   { id: "submission-pt-20901", ownerId: "clinician", caseItem: { ...cases[4], id: "case-pt-20901", patientId: "PT-20901", clinicianDx: "STEMI", aiDx: "STEMI with LVH", priority: "critical" }, status: "awaiting", submittedAt: "Today · 09:41", submittedSort: 380 },
   { id: "submission-pt-20877", ownerId: "clinician", caseItem: { ...cases[10], id: "case-pt-20877", patientId: "PT-20877", clinicianDx: "Normal Sinus Rhythm", aiDx: "Posterior MI", priority: "high" }, status: "reviewed", submittedAt: "Yesterday · 15:20", submittedSort: 200, reviewedAt: "Yesterday · 15:48", reviewedSort: 250, expertName: "Dr. Samir Patel", finalDx: "Posterior MI", expertNotes: "Reciprocal anterior changes and tall R waves are most consistent with posterior myocardial infarction.", takeaway: "Reciprocal ST depression in V1–V3 with tall R waves should prompt posterior-lead assessment." },
+  { id: "submission-system-20846", ownerId: "system", caseItem: cases[7], status: "reviewed", submittedAt: cases[7].acquiredAt, submittedSort: 140, reviewedAt: "Reviewed 45 min ago", reviewedSort: 160, expertName: "Dr. Maya Chen", finalDx: cases[7].aiDx, expertNotes: "Independent waveform review confirmed concordant left bundle branch block morphology.", takeaway: "Use QRS morphology and repolarization discordance together when confirming bundle branch block." },
+  { id: "submission-system-20847", ownerId: "system", caseItem: cases[8], status: "reviewed", submittedAt: cases[8].acquiredAt, submittedSort: 120, reviewedAt: "Reviewed 2.3 hr ago", reviewedSort: 150, expertName: "Dr. Samir Patel", finalDx: cases[8].aiDx, expertNotes: "Pacing spikes and broad paced QRS complexes confirm ventricular pacing.", takeaway: "Identify pacing spikes before interpreting the morphology of a broad QRS rhythm." },
 ];
 
 function Logo({ compact = false }: { compact?: boolean }) {
@@ -149,7 +153,7 @@ function Shell() {
     setReviewSubmissions(items => [{ id: `submission-${account.id}-${draft.caseItem.id}`, ownerId: account.id, ...draft, status: "awaiting", submittedAt: "Just now", submittedSort: Date.now() }, ...items]);
     return true;
   };
-  const addAiAcceptedCase = (draft: UploadSubmissionDraft) => {
+  const addClinicianFinalizedCase = (draft: UploadSubmissionDraft, decision: "ai-accepted" | "clinician-maintained") => {
     if (reviewSubmissions.some(item => item.caseItem.patientId.toLowerCase() === draft.caseItem.patientId.toLowerCase())) return false;
     const finalizedSort = Date.now();
     setReviewSubmissions(items => [{
@@ -161,7 +165,8 @@ function Shell() {
       submittedSort: finalizedSort,
       finalizedAt: "Just now",
       finalizedSort,
-      finalDx: draft.caseItem.aiDx,
+      finalizedDecision: decision,
+      finalDx: decision === "ai-accepted" ? draft.caseItem.aiDx : draft.caseItem.clinicianDx,
     }, ...items]);
     return true;
   };
@@ -222,7 +227,6 @@ function Shell() {
             <Route path="/cases" element={<CasesPage role={role} submissions={role === "clinician" ? myReviewSubmissions : reviewSubmissions} openUpload={() => setUploadOpen(true)}/>}/>
             <Route path="/cases/:id" element={visibleCaseSubmission ? <CaseDetail submission={visibleCaseSubmission}/> : <Navigate to="/cases" replace/>}/>
             <Route path="/review" element={role === "expert" ? <ReviewPage submissions={reviewSubmissions} onReviewCompleted={completeExpertSubmission}/> : <Navigate to="/" replace/>}/>
-            <Route path="/my-reviews" element={role === "clinician" ? <MyExpertReviews submissions={myReviewSubmissions}/> : <Navigate to="/" replace/>}/>
             <Route path="/learning" element={role === "clinician" ? <LearningPage submissions={myReviewSubmissions}/> : <Navigate to="/" replace/>}/>
             <Route path="/analytics" element={role === "expert" ? <AnalyticsPage/> : <Navigate to="/" replace/>}/>
             <Route path="/settings" element={<SettingsPage/>}/>
@@ -230,12 +234,12 @@ function Shell() {
           </Routes>
         </main>
       </div>
-      {role === "clinician" && uploadOpen && <UploadWorkflow existingPatientIds={reviewSubmissions.map(item => item.caseItem.patientId)} accountName={account.name} onExpertSubmit={addExpertSubmission} onAiAccepted={addAiAcceptedCase} onClose={() => setUploadOpen(false)}/>}
+      {role === "clinician" && uploadOpen && <UploadWorkflow existingPatientIds={reviewSubmissions.map(item => item.caseItem.patientId)} accountName={account.name} onExpertSubmit={addExpertSubmission} onClinicianFinalized={addClinicianFinalizedCase} onClose={() => setUploadOpen(false)}/>}
     </div>
   );
 }
 
-function UploadWorkflow({ onClose, onExpertSubmit, onAiAccepted, accountName, existingPatientIds }: { onClose: () => void; onExpertSubmit: (draft: UploadSubmissionDraft) => boolean; onAiAccepted: (draft: UploadSubmissionDraft) => boolean; accountName: string; existingPatientIds: string[] }) {
+function UploadWorkflow({ onClose, onExpertSubmit, onClinicianFinalized, accountName, existingPatientIds }: { onClose: () => void; onExpertSubmit: (draft: UploadSubmissionDraft) => boolean; onClinicianFinalized: (draft: UploadSubmissionDraft, decision: "ai-accepted" | "clinician-maintained") => boolean; accountName: string; existingPatientIds: string[] }) {
   const navigate = useNavigate();
   const [mockSeed, setMockSeed] = useState(0);
   const [step, setStep] = useState(1);
@@ -281,7 +285,7 @@ function UploadWorkflow({ onClose, onExpertSubmit, onAiAccepted, accountName, ex
   }, [step]);
   const finish = (choice: "accepted" | "maintained" | "expert") => {
     setOutcome(choice);
-    if (choice !== "maintained") {
+    {
       const safeId = normalizedPatientId.replace(/[^A-Z0-9]+/g,"-").replace(/^-|-$/g,"").toLowerCase();
       const ageStart = Number(ageRange.match(/\d+/)?.[0] || 65);
       const caseItem: Case = {
@@ -303,7 +307,7 @@ function UploadWorkflow({ onClose, onExpertSubmit, onAiAccepted, accountName, ex
         elapsed: "Just now",
       };
       const draft = { caseItem, ageRange, sexLabel: sex, reason, matchRating, aiConfidence, aiFeatures: aiProfile.features };
-      const added = choice === "expert" ? onExpertSubmit(draft) : onAiAccepted(draft);
+      const added = choice === "expert" ? onExpertSubmit(draft) : onClinicianFinalized(draft, choice === "accepted" ? "ai-accepted" : "clinician-maintained");
       if (!added) {
         setStep(1);
         return;
@@ -349,14 +353,14 @@ function UploadWorkflow({ onClose, onExpertSubmit, onAiAccepted, accountName, ex
             <div className="comparison-card ai"><header><Zap size={18}/><strong>AI Interpretation</strong><span>ECG-AI v2.4 · case-specific mock</span></header><div><div className="ai-title"><div><span>DIAGNOSIS</span><h3>{aiProfile.diagnosis}</h3></div><strong>{aiConfidence}%</strong></div><div className="match-rating"><span>CLINICIAN / AI MATCH</span><i><b style={{width:`${matchRating}%`}}/></i><strong>{matchRating}%</strong></div><span>DETECTED FEATURES</span><ul>{aiProfile.features.map(feature=><li key={feature}>{feature}</li>)}</ul><p className="explainer">{aiProfile.explanation}</p><p className="decision-note"><AlertTriangle size={14}/><b>Note:</b> AI is a quality-improvement second reader. Final clinical decisions rest with the treating physician.</p></div></div>
           </div>
         </div>}
-        {step === 5 && <div className="completion-step"><span className="completion-icon">{outcome === "expert" ? <Sparkles size={35}/> : <CheckCircle2 size={35}/>}</span><h3>{outcome === "expert" ? "Sent to Expert Review" : outcome === "accepted" ? "AI Interpretation Accepted" : "Comparison Decision Recorded"}</h3><p>{outcome === "expert" ? `${normalizedPatientId} has been added to your Under Expert Review cases and the expert queue with a unique ${matchRating}% match rating.` : outcome === "accepted" ? `${normalizedPatientId} is now a read-only case in My ECG Cases and has been added to your Learning Dashboard activity. It remains excluded from the expert-review queue.` : "The clinician interpretation was maintained and the disagreement was documented for quality-improvement follow-up."}</p><div className="completion-summary"><span><b>Case</b><strong className="mono">{normalizedPatientId}</strong></span><span><b>Status</b><strong>{outcome === "expert" ? "Waiting for expert review" : outcome === "accepted" ? "AI accepted" : "Decision recorded"}</strong></span><span><b>Match</b><strong>{matchRating}%</strong></span></div><div className="guardrail"><ShieldCheck size={18}/><span><strong>Audit trail updated</strong>All workflow actions are simulated locally for this prototype.</span></div></div>}
+        {step === 5 && <div className="completion-step"><span className="completion-icon">{outcome === "expert" ? <Sparkles size={35}/> : <CheckCircle2 size={35}/>}</span><h3>{outcome === "expert" ? "Sent to Expert Review" : outcome === "accepted" ? "AI Interpretation Accepted" : "Clinician Interpretation Maintained"}</h3><p>{outcome === "expert" ? `${normalizedPatientId} has been added to your Under Expert Review cases and the expert queue with a unique ${matchRating}% match rating.` : outcome === "accepted" ? `${normalizedPatientId} is now a read-only case in My ECG Cases and has been added to your Learning Dashboard activity. It remains excluded from the expert-review queue.` : `${normalizedPatientId} is now a read-only clinician-finalized case in My ECG Cases and Learning Dashboard activity. The original clinician interpretation remains final, and the case is excluded from expert review.`}</p><div className="completion-summary"><span><b>Case</b><strong className="mono">{normalizedPatientId}</strong></span><span><b>Status</b><strong>{outcome === "expert" ? "Waiting for expert review" : outcome === "accepted" ? "AI accepted" : "Clinician interpretation maintained"}</strong></span><span><b>Match</b><strong>{matchRating}%</strong></span></div><div className="guardrail"><ShieldCheck size={18}/><span><strong>Audit trail updated</strong>All workflow actions are simulated locally for this prototype.</span></div></div>}
       </div>
       <footer className="workflow-footer">
         {step === 1 && <><span/><button className="button primary" disabled={!fileName || !normalizedPatientId || duplicatePatientId || !reason.trim()} onClick={() => setStep(2)}>Continue to Clinician Interpretation <ChevronDown className="chevron-right" size={16}/></button></>}
         {step === 2 && <><button className="button ghost" onClick={() => setStep(1)}>‹ Back</button><div><button className="button secondary">Save Draft</button><button className="button primary" onClick={() => setStep(3)}><Zap size={16}/>Submit for AI Analysis</button></div></>}
         {step === 3 && <><span/><button className="button secondary" onClick={() => setStep(2)}>Cancel processing</button></>}
         {step === 4 && <><button className="button ghost" onClick={() => setStep(2)}>‹ Back</button><div><button className="button secondary decision" onClick={() => finish("accepted")}><Check size={16}/>Accept AI Suggestion</button><button className="button secondary decision" onClick={() => finish("maintained")}><Stethoscope size={16}/>Maintain Clinician Interpretation</button><button className="button primary decision" onClick={() => finish("expert")}><Sparkles size={16}/>Send to Expert Review</button></div></>}
-        {step === 5 && <><button className="button ghost" onClick={onClose}>Close</button><button className="button primary" onClick={() => { onClose(); navigate(outcome === "expert" ? "/my-reviews" : outcome === "accepted" ? `/cases/${encodeURIComponent(normalizedPatientId)}` : "/cases"); }}>{outcome === "expert" ? "Track My Review" : outcome === "accepted" ? "View Saved Case" : "View My Cases"} →</button></>}
+        {step === 5 && <><button className="button ghost" onClick={onClose}>Close</button><button className="button primary" onClick={() => { onClose(); navigate(outcome === "expert" ? "/cases" : `/cases/${encodeURIComponent(normalizedPatientId)}`); }}>{outcome === "expert" ? "Track in ECG Cases" : "View Saved Case"} →</button></>}
       </footer>
     </section>
   </div>;
@@ -405,10 +409,10 @@ function Dashboard({ openUpload, submissions }: { openUpload: () => void; submis
         <div className="chart tall"><ResponsiveContainer><BarChart data={discrepancyData} layout="vertical" margin={{ top: 8, right: 18, left: 16, bottom: 0 }}><CartesianGrid stroke={gridStyle} strokeDasharray="4 4" horizontal={false}/><XAxis type="number" domain={[0,20]} tick={tickStyle} axisLine={false} tickLine={false}/><YAxis type="category" dataKey="name" width={92} tick={tickStyle} axisLine={false} tickLine={false}/><Tooltip/><Bar dataKey="value" fill="#EF4444" radius={[0,4,4,0]} barSize={10}/></BarChart></ResponsiveContainer></div>
       </Panel>
     </div>
-    <Panel title="Today’s Expert Review Workload" subtitle="Your personal submissions only" action={<Link className="text-link" to="/my-reviews">View all →</Link>}>
+    <Panel title="Today’s Expert Review Workload" subtitle="Your personal submissions only" action={<Link className="text-link" to="/cases">View all →</Link>}>
       <div className="clinician-today-workload">
-        <Link to="/my-reviews"><span className="icon-chip amber"><Clock3 size={19}/></span><div><small>AWAITING EXPERT REVIEW</small><strong>{awaitingReviews.length}</strong><p>{awaitingReviews[0] ? `${awaitingReviews[0].caseItem.patientId} · ${awaitingReviews[0].caseItem.priority.toUpperCase()} priority` : "No pending submissions"}</p></div><b>Track →</b></Link>
-        <Link to="/my-reviews"><span className="icon-chip green"><CheckCircle2 size={19}/></span><div><small>REVIEWED</small><strong>{completedReviews.length}</strong><p>{completedReviews[0] ? `${completedReviews[0].caseItem.patientId} · Feedback ready` : "No completed reviews yet"}</p></div><b>Open →</b></Link>
+        <Link to="/cases"><span className="icon-chip amber"><Clock3 size={19}/></span><div><small>AWAITING EXPERT REVIEW</small><strong>{awaitingReviews.length}</strong><p>{awaitingReviews[0] ? `${awaitingReviews[0].caseItem.patientId} · ${awaitingReviews[0].caseItem.priority.toUpperCase()} priority` : "No pending submissions"}</p></div><b>Track →</b></Link>
+        <Link to="/cases"><span className="icon-chip green"><CheckCircle2 size={19}/></span><div><small>REVIEWED</small><strong>{completedReviews.length}</strong><p>{completedReviews[0] ? `${completedReviews[0].caseItem.patientId} · Feedback ready` : "No completed reviews yet"}</p></div><b>Open →</b></Link>
       </div>
     </Panel>
     <ClinicianRecentCases submissions={submissions}/>
@@ -421,7 +425,7 @@ function ExpertDashboard({ submissions }: { submissions: ClinicianReviewSubmissi
   const genericAwaiting = cases.slice(0,7).filter(item => !submissions.some(submission => submission.caseItem.id === item.id));
   const allAwaiting = [...submittedAwaiting.map(item => item.caseItem), ...genericAwaiting];
   const priorityCases = [...allAwaiting].sort((a,b) => severityRank[b.priority] - severityRank[a.priority]).slice(0,5);
-  const reviewedCount = submissions.filter(item => item.status === "reviewed").length + 2;
+  const reviewedCount = submissions.filter(item => item.status === "reviewed").length;
   const highPriorityCount = allAwaiting.filter(item => item.priority === "critical" || item.priority === "high").length;
   return <>
     <PageHeader title="Expert Review Overview" subtitle="Cardiology adjudication workspace · High-priority discrepancies first" actions={<Link className="button primary" to="/review"><ClipboardList size={16}/>Open Review Queue</Link>}/>
@@ -451,13 +455,13 @@ function ClinicianRecentCases({ submissions }: { submissions: ClinicianReviewSub
   const recent = [...submissions].sort((a,b) => Math.max(b.reviewedSort || 0,b.finalizedSort || 0,b.submittedSort) - Math.max(a.reviewedSort || 0,a.finalizedSort || 0,a.submittedSort)).slice(0,5);
   return <Panel title="My Recent Cases" subtitle="Your latest submissions, AI decisions, and expert-review updates" action={<Link className="text-link" to="/cases">View all →</Link>} className="table-panel">
     <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Your Diagnosis</th><th>AI Reading</th><th>Expert Status</th><th>Latest Activity</th></tr></thead>
-      <tbody>{recent.map(item => <tr key={item.id}><td>{item.status !== "awaiting" ? <Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link> : <span className="mono">{item.caseItem.patientId}</span>}</td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td>{item.status === "reviewed" ? <span className="review-state reviewed"><CheckCircle2 size={13}/>Expert reviewed</span> : item.status === "finalized" ? <span className="review-state accepted"><BrainCircuit size={13}/>AI accepted</span> : <span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span>}</td><td>{item.status === "reviewed" ? item.reviewedAt : item.status === "finalized" ? item.finalizedAt : item.submittedAt}</td></tr>)}</tbody></table></div>
+      <tbody>{recent.map(item => <tr key={item.id}><td>{item.status !== "awaiting" ? <Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link> : <span className="mono">{item.caseItem.patientId}</span>}</td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td>{item.status === "reviewed" ? <span className="review-state reviewed"><CheckCircle2 size={13}/>Expert reviewed</span> : item.status === "finalized" ? <span className={`review-state ${item.finalizedDecision === "clinician-maintained" ? "maintained" : "accepted"}`}>{item.finalizedDecision === "clinician-maintained" ? <Stethoscope size={13}/> : <BrainCircuit size={13}/>} {item.finalizedDecision === "clinician-maintained" ? "Clinician maintained" : "AI accepted"}</span> : <span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span>}</td><td>{item.status === "reviewed" ? item.reviewedAt : item.status === "finalized" ? item.finalizedAt : item.submittedAt}</td></tr>)}</tbody></table></div>
   </Panel>;
 }
 
 function AiAcceptedSubmissionTable({ items }: { items: ClinicianReviewSubmission[] }) {
-  return <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Clinician Input</th><th>Accepted AI Reading</th><th>Match</th><th>Status</th><th>Finalized</th></tr></thead>
-    <tbody>{items.map(item => <tr key={item.id}><td><Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link></td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td><strong>{item.matchRating ?? "—"}{item.matchRating !== undefined && "%"}</strong></td><td><span className="review-state accepted"><BrainCircuit size={13}/>AI accepted</span></td><td>{item.finalizedAt}</td></tr>)}</tbody></table></div>;
+  return <div className="table-wrap"><table><thead><tr><th>Patient ID</th><th>Clinician Input</th><th>AI Reading</th><th>Match</th><th>Final Decision</th><th>Finalized</th></tr></thead>
+    <tbody>{items.map(item => <tr key={item.id}><td><Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link></td><td>{item.caseItem.clinicianDx}</td><td>{item.caseItem.aiDx}</td><td><strong>{item.matchRating ?? "—"}{item.matchRating !== undefined && "%"}</strong></td><td><span className={`review-state ${item.finalizedDecision === "clinician-maintained" ? "maintained" : "accepted"}`}>{item.finalizedDecision === "clinician-maintained" ? <Stethoscope size={13}/> : <BrainCircuit size={13}/>} {item.finalizedDecision === "clinician-maintained" ? "Clinician maintained" : "AI accepted"}</span></td><td>{item.finalizedAt}</td></tr>)}</tbody></table></div>;
 }
 
 function ReviewedSubmissionTable({ items, expertView = false }: { items: ClinicianReviewSubmission[]; expertView?: boolean }) {
@@ -477,8 +481,8 @@ function CasesPage({ openUpload, role, submissions }: { openUpload: () => void; 
   return <>
     <PageHeader title="My ECG Cases" subtitle="Your submissions only · Ordered by latest activity" actions={<button className="button primary" onClick={openUpload}><Upload size={15}/>Upload ECG</button>}/>
     <div className="case-section-stack">
-      <Panel title="AI Interpretations Accepted" subtitle="Clinician-finalized cases · Read-only and excluded from expert review" action={<span className="count-chip blue">{finalized.length}</span>} className="table-panel">
-        {finalized.length > 0 ? <AiAcceptedSubmissionTable items={finalized}/> : <div className="empty-review-column"><BrainCircuit size={25}/><strong>No accepted AI cases yet</strong><p>Cases appear here after you accept an AI interpretation.</p></div>}
+      <Panel title="Clinician-Finalized Cases" subtitle="AI accepted or clinician interpretation maintained · Read-only and excluded from expert review" action={<span className="count-chip blue">{finalized.length}</span>} className="table-panel">
+        {finalized.length > 0 ? <AiAcceptedSubmissionTable items={finalized}/> : <div className="empty-review-column"><BrainCircuit size={25}/><strong>No clinician-finalized cases yet</strong><p>Cases appear here after you accept the AI reading or maintain your interpretation.</p></div>}
       </Panel>
       <Panel title="Under Expert Review" subtitle="Your latest submissions awaiting adjudication" action={<span className="count-chip amber">{awaiting.length}</span>}>
         <div className="pending-case-grid">{awaiting.map(item => <article className="pending-case" key={item.id}><header><span className="mono">{item.caseItem.patientId}</span><PriorityBadge priority={item.caseItem.priority}/></header><div><span>YOUR INPUT<strong>{item.caseItem.clinicianDx}</strong></span><span>AI READING<strong>{item.caseItem.aiDx}</strong></span><span>MATCH RATING<strong>{item.matchRating ?? "—"}{item.matchRating !== undefined && "%"}</strong></span><span>PATIENT CONTEXT<strong>{item.ageRange || `${item.caseItem.age} years`} · {item.sexLabel || item.caseItem.sex} · {item.caseItem.department}</strong></span></div>{item.reason && <p className="pending-reason"><b>Reason:</b> {item.reason}</p>}<footer><span className="review-state awaiting"><Clock3 size={13}/>Awaiting expert review</span><time>{item.submittedAt}</time></footer></article>)}</div>
@@ -508,51 +512,21 @@ function EcgViewer() {
 function CaseDetail({ submission }: { submission: ClinicianReviewSubmission }) {
   const selected = submission.caseItem;
   const aiAccepted = submission.status === "finalized";
+  const clinicianMaintained = submission.finalizedDecision === "clinician-maintained";
   return <>
-    <div className="detail-title"><div className="breadcrumbs"><Link to="/cases">ECG Cases</Link><span>›</span><b>{selected.patientId}</b><PriorityBadge priority={selected.priority}/><span className={`reviewed-banner ${aiAccepted ? "accepted" : ""}`}>{aiAccepted ? <BrainCircuit size={16}/> : <CheckCircle2 size={16}/>} {aiAccepted ? `AI accepted ${submission.finalizedAt}` : `Expert reviewed ${submission.reviewedAt}`}</span></div></div>
-    <div className="case-record-banner"><ShieldCheck size={18}/><div><strong>Finalized read-only case record</strong><p>{aiAccepted ? "This page reflects the clinician input and the simulated AI interpretation the clinician accepted. It was not submitted for expert adjudication and cannot be edited." : "This page reflects the submitted clinician interpretation, simulated AI second read, and completed expert adjudication. It cannot be edited."}</p></div></div>
+    <div className="detail-title"><div className="breadcrumbs"><Link to="/cases">ECG Cases</Link><span>›</span><b>{selected.patientId}</b><PriorityBadge priority={selected.priority}/><span className={`reviewed-banner ${aiAccepted ? clinicianMaintained ? "maintained" : "accepted" : ""}`}>{aiAccepted ? clinicianMaintained ? <Stethoscope size={16}/> : <BrainCircuit size={16}/> : <CheckCircle2 size={16}/>} {aiAccepted ? `${clinicianMaintained ? "Clinician maintained" : "AI accepted"} ${submission.finalizedAt}` : `Expert reviewed ${submission.reviewedAt}`}</span></div></div>
+    <div className="case-record-banner"><ShieldCheck size={18}/><div><strong>Finalized read-only case record</strong><p>{aiAccepted ? clinicianMaintained ? "This page preserves the clinician interpretation as the final comparison result alongside the simulated AI reading. It was not submitted for expert adjudication and cannot be edited." : "This page reflects the clinician input and the simulated AI interpretation the clinician accepted. It was not submitted for expert adjudication and cannot be edited." : "This page reflects the submitted clinician interpretation, simulated AI second read, and completed expert adjudication. It cannot be edited."}</p></div></div>
     <div className="detail-grid reviewed-detail">
       <div><EcgViewer/><Panel title="Case Information" action={<span className="anonymized"><ShieldCheck size={14}/>Anonymized</span>}><div className="patient-grid">{[["Patient ID",selected.patientId],["Age Range",submission.ageRange || `${selected.age} years`],["Sex",submission.sexLabel || selected.sex],["Department",selected.department],["Reason",submission.reason || selected.chiefComplaint],["AI/Clinician Match",submission.matchRating !== undefined ? `${submission.matchRating}%` : "—"],["AI Confidence",submission.aiConfidence !== undefined ? `${submission.aiConfidence}%` : "—"],["Submitted",submission.submittedAt],[aiAccepted ? "Finalized" : "Reviewed",aiAccepted ? submission.finalizedAt || "—" : submission.reviewedAt || "—"]].map(([key,value])=><div key={key}><span>{key}</span><strong className={key==="Patient ID"?"mono":""}>{value}</strong></div>)}</div></Panel></div>
       <aside className="interpretations read-only-interpretations">
         <Panel title="Clinician Input" action={<span className="record-label">SUBMITTED</span>}><div className="record-diagnosis"><span>PRIMARY DIAGNOSIS</span><h3>{selected.clinicianDx}</h3><p>The clinician interpretation was recorded before the AI second read was revealed.</p></div></Panel>
         <Panel title="AI Reading" action={<span className="model-chip">ECG-AI v2.4 · simulated</span>}><div className="record-diagnosis ai-record"><span>PRIMARY DIAGNOSIS</span><h3>{selected.aiDx}</h3><ul className="findings"><li>Rhythm morphology and interval pattern analyzed</li><li>Confidence-weighted quality-improvement comparison</li><li>Decision-support output only</li></ul></div></Panel>
-        {aiAccepted ? <Panel title="Clinician Decision" action={<span className="review-state accepted"><BrainCircuit size={13}/>AI accepted</span>}><div className="expert-record ai-accepted-record"><div><span>FINALIZED COMPARISON RESULT</span><h3>{selected.aiDx}</h3><small>Accepted by the treating clinician · {submission.finalizedAt}</small></div><p>This simulated AI interpretation was accepted for the quality-improvement record. No expert adjudication was requested.</p></div></Panel> : <>
+        {aiAccepted ? <Panel title="Clinician Decision" action={<span className={`review-state ${clinicianMaintained ? "maintained" : "accepted"}`}>{clinicianMaintained ? <Stethoscope size={13}/> : <BrainCircuit size={13}/>} {clinicianMaintained ? "Clinician maintained" : "AI accepted"}</span>}><div className={`expert-record ai-accepted-record ${clinicianMaintained ? "clinician-maintained-record" : ""}`}><div><span>FINALIZED COMPARISON RESULT</span><h3>{clinicianMaintained ? selected.clinicianDx : selected.aiDx}</h3><small>Finalized by the treating clinician · {submission.finalizedAt}</small></div><p>{clinicianMaintained ? "The original clinician interpretation was maintained after reviewing the simulated AI comparison. No expert adjudication was requested." : "This simulated AI interpretation was accepted for the quality-improvement record. No expert adjudication was requested."}</p></div></Panel> : <>
           <Panel title="Expert Review" action={<span className="review-state reviewed"><CheckCircle2 size={13}/>Final</span>}><div className="expert-record"><div><span>FINAL DIAGNOSIS</span><h3>{submission.finalDx}</h3><small>{submission.expertName} · {submission.reviewedAt}</small></div><p>{submission.expertNotes}</p></div></Panel>
           <Panel title="Key Takeaway" action={<BookOpen size={17} className="takeaway-icon"/>}><div className="case-takeaway"><BookOpen size={21}/><p>{submission.takeaway}</p></div></Panel>
         </>}
       </aside>
     </div>
-  </>;
-}
-
-function MyExpertReviews({ submissions }: { submissions: ClinicianReviewSubmission[] }) {
-  const awaiting = submissions.filter(item => item.status === "awaiting").sort((a,b) => b.submittedSort - a.submittedSort);
-  const reviewed = submissions.filter(item => item.status === "reviewed").sort((a,b) => (b.reviewedSort || 0) - (a.reviewedSort || 0));
-  const columns = [
-    { key: "awaiting", title: "AWAITING EXPERT REVIEW", tone: "amber", items: awaiting },
-    { key: "reviewed", title: "REVIEWED", tone: "green", items: reviewed },
-  ];
-  return <>
-    <PageHeader title="My Expert Reviews" subtitle="Track only the ECG cases you personally submitted for expert adjudication" actions={<button className="button secondary"><Filter size={15}/>Filter</button>}/>
-    <div className="clinician-review-summary">
-      <article><span className="icon-chip amber"><Clock3 size={18}/></span><div><strong>{awaiting.length}</strong><small>Awaiting expert review</small></div></article>
-      <article><span className="icon-chip green"><CheckCircle2 size={18}/></span><div><strong>{reviewed.length}</strong><small>Expert feedback ready</small></div></article>
-      <p><ShieldCheck size={16}/>Private view · only your own submissions are shown</p>
-    </div>
-    <div className="kanban clinician-workload">{columns.map(column => <section className="kanban-col" key={column.key}>
-      <header className={column.tone}><span>{column.title}</span><b>{column.items.length}</b></header>
-      {column.items.length === 0 && <div className="empty-review-column"><CheckCircle2 size={25}/><strong>No cases here</strong><p>Your submitted cases will appear automatically.</p></div>}
-      {column.items.map(submission => <article className="case-card clinician-review-card" key={submission.id}>
-        <div>{submission.status === "reviewed" ? <Link className="id-link" to={`/cases/${submission.caseItem.patientId}`}>{submission.caseItem.patientId}</Link> : <span className="mono">{submission.caseItem.patientId}</span>}<PriorityBadge priority={submission.caseItem.priority}/></div>
-        <p>Your diagnosis: <strong>{submission.caseItem.clinicianDx}</strong></p>
-        <p>AI comparison: <strong className="blue-text">{submission.caseItem.aiDx}</strong></p>
-        {submission.matchRating !== undefined && <p>Match rating: <strong>{submission.matchRating}%</strong></p>}
-        {submission.status === "reviewed" ? <>
-          <div className="expert-feedback"><span><CheckCircle2 size={14}/>EXPERT FINAL DIAGNOSIS</span><strong>{submission.finalDx}</strong><p>{submission.takeaway}</p></div>
-          <footer><span><Clock3 size={14}/>{submission.reviewedAt}</span><b>{submission.expertName}</b></footer>
-        </> : <><div className="awaiting-status"><Clock3 size={15}/><span><strong>Waiting for expert assignment</strong>Submitted {submission.submittedAt}</span></div><footer><span>Updates will appear here</span></footer></>}
-      </article>)}
-    </section>)}</div>
   </>;
 }
 
@@ -563,26 +537,23 @@ function QueueCaseDetails({ caseItem, submission, completed, reviewer }: { caseI
 }
 
 function ReviewPage({ submissions, onReviewCompleted }: { submissions: ClinicianReviewSubmission[]; onReviewCompleted: (caseId: string, finalDx: string, takeaway: string, expertNotes: string) => void }) {
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<{ caseItem: Case; completed: boolean } | null>(null);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const severityRank: Record<Priority, number> = { critical: 4, high: 3, medium: 2, low: 1 };
   const sortBySeverity = (items: Case[]) => [...items].sort((a,b) => severityRank[b.priority] - severityRank[a.priority] || a.patientId.localeCompare(b.patientId));
-  const expertReviewedSeed = [
-    { ...cases[7], elapsed: "Reviewed 45 min ago" },
-    { ...cases[8], elapsed: "Reviewed 2.3 hr ago" },
-  ];
   const submittedAwaiting = submissions.filter(item => item.status === "awaiting").map(item => item.caseItem);
   const submittedReviewed = submissions.filter(item => item.status === "reviewed").map(item => ({ ...item.caseItem, aiDx: item.finalDx || item.caseItem.aiDx, elapsed: item.reviewedAt || "Expert reviewed" }));
   const newlyCompleted = completedIds.map(id => cases.find(c => c.id === id)).filter((c): c is Case => Boolean(c));
   const genericAwaiting = cases.slice(0,7).filter(item => !submissions.some(submission => submission.caseItem.id === item.id));
   const columns = [
     { key: "pending", title: "YET TO REVIEW", tone: "amber", items: sortBySeverity([...submittedAwaiting, ...genericAwaiting].filter(c => !completedIds.includes(c.id))) },
-    { key: "complete", title: "EXPERT REVIEWED", tone: "green", items: sortBySeverity([...submittedReviewed, ...expertReviewedSeed, ...newlyCompleted].filter((item,index,array) => array.findIndex(other => other.id === item.id) === index)) },
+    { key: "complete", title: "EXPERT REVIEWED", tone: "green", items: sortBySeverity([...submittedReviewed, ...newlyCompleted].filter((item,index,array) => array.findIndex(other => other.id === item.id) === index)) },
   ];
   return <>
     <PageHeader title="Expert Review Queue" subtitle="Only cases escalated for expert adjudication · Highest severity first" actions={<select aria-label="Department filter"><option>All Departments</option><option>Emergency</option><option>Cardiology</option></select>}/>
     <div className="review-scope-note"><ShieldCheck size={16}/><span>Clinician-only decisions and accepted AI suggestions are excluded. Completed means an expert submitted a final adjudication.</span></div>
-    <div className="kanban review-kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((caseItem,index)=><button key={caseItem.id} className={`case-card ${selected?.caseItem.id === caseItem.id ? "selected" : ""}`} onClick={()=>setSelected({caseItem, completed:col.key === "complete"})}><QueueCaseDetails caseItem={caseItem} submission={submissions.find(item=>item.caseItem.id===caseItem.id)} completed={col.key==="complete"} reviewer={index%2 ? "Dr. Patel" : "Dr. Chen"}/></button>)}</section>)}</div>
+    <div className="kanban review-kanban">{columns.map(col=><section key={col.key} className="kanban-col"><header className={col.tone}><span>{col.title}</span><b>{col.items.length}</b></header>{col.items.map((caseItem,index)=><button key={caseItem.id} className={`case-card ${selected?.caseItem.id === caseItem.id ? "selected" : ""}`} onClick={()=>col.key === "complete" ? navigate(`/cases/${encodeURIComponent(caseItem.patientId)}`) : setSelected({caseItem, completed:false})}><QueueCaseDetails caseItem={caseItem} submission={submissions.find(item=>item.caseItem.id===caseItem.id)} completed={col.key==="complete"} reviewer={index%2 ? "Dr. Patel" : "Dr. Chen"}/></button>)}</section>)}</div>
     {selected && <ExpertReviewDrawer key={selected.caseItem.id} submission={submissions.find(item=>item.caseItem.id===selected.caseItem.id)} completed={selected.completed} caseItem={selected.caseItem} onClose={()=>setSelected(null)} onSubmit={(finalDx,takeaway,expertNotes)=>{ setCompletedIds(ids => ids.includes(selected.caseItem.id) ? ids : [...ids, selected.caseItem.id]); onReviewCompleted(selected.caseItem.id, finalDx, takeaway, expertNotes); }}/>}
   </>;
 }
@@ -628,19 +599,20 @@ function ExpertReviewDrawer({ caseItem, submission, onClose, onSubmit, completed
 
 function LearningPage({ submissions }: { submissions: ClinicianReviewSubmission[] }) {
   const radar = [{name:"Arrhythmia",you:88,dept:84},{name:"Ischemia",you:78,dept:79},{name:"Conduction",you:94,dept:86},{name:"ST Changes",you:82,dept:80},{name:"Normal",you:96,dept:91},{name:"Axis Dev.",you:85,dept:82}];
-  const aiAccepted = submissions.filter(item => item.status === "finalized").sort((a,b) => (b.finalizedSort || 0) - (a.finalizedSort || 0));
-  const monthlyCaseCount = 47 + aiAccepted.length;
+  const clinicianFinalized = submissions.filter(item => item.status === "finalized").sort((a,b) => (b.finalizedSort || 0) - (a.finalizedSort || 0));
+  const reviewedByPatientId = new Map(submissions.filter(item => item.status === "reviewed").map(item => [item.caseItem.patientId, item]));
+  const monthlyCaseCount = 47 + clinicianFinalized.length;
   return <>
     <PageHeader title="Learning Dashboard" subtitle="Dr. Adaeze Nkemdirim · Private · Updated daily" actions={<span className="success-badge">↗ Concordance improved 12% this quarter</span>}/>
-    <div className="celebration"><Award size={35}/><div><strong>Outstanding Progress, Dr. Nkemdirim!</strong><p>You have completed {monthlyCaseCount} learning cases this month, including {aiAccepted.length} AI interpretation{aiAccepted.length === 1 ? "" : "s"} accepted in this session. Your concordance rate is 88%.</p></div></div>
-    <div className="kpi-grid"><KpiCard icon={CheckCircle2} tone="green" value="88%" label="Concordance Rate" delta="↗ 12%" note="↑ 12% from last quarter"/><KpiCard icon={Sparkles} tone="blue" value="+4.2 pts" label="Monthly Improvement" delta="↗ 14%" note="Strongest in Conduction"/><KpiCard icon={ClipboardList} tone="purple" value={String(monthlyCaseCount)} label="Learning Cases" delta={aiAccepted.length ? `+${aiAccepted.length} new` : "↗ 8%"} note={`This month · ${312 + aiAccepted.length} lifetime`}/><KpiCard icon={Star} tone="amber" value="18 days" label="Learning Streak" delta="↗ 0%" note="Keep going!"/></div>
+    <div className="celebration"><Award size={35}/><div><strong>Outstanding Progress, Dr. Nkemdirim!</strong><p>You have completed {monthlyCaseCount} learning cases this month, including {clinicianFinalized.length} clinician-finalized comparison{clinicianFinalized.length === 1 ? "" : "s"} in this session. Your concordance rate is 88%.</p></div></div>
+    <div className="kpi-grid"><KpiCard icon={CheckCircle2} tone="green" value="88%" label="Concordance Rate" delta="↗ 12%" note="↑ 12% from last quarter"/><KpiCard icon={Sparkles} tone="blue" value="+4.2 pts" label="Monthly Improvement" delta="↗ 14%" note="Strongest in Conduction"/><KpiCard icon={ClipboardList} tone="purple" value={String(monthlyCaseCount)} label="Learning Cases" delta={clinicianFinalized.length ? `+${clinicianFinalized.length} new` : "↗ 8%"} note={`This month · ${312 + clinicianFinalized.length} lifetime`}/><KpiCard icon={Star} tone="amber" value="18 days" label="Learning Streak" delta="↗ 0%" note="Keep going!"/></div>
     <div className="learning-charts">
       <Panel title="Performance by ECG Type" subtitle="Your accuracy vs. department average"><div className="chart radar"><ResponsiveContainer><RadarChart data={radar} outerRadius="72%"><PolarGrid stroke={gridStyle}/><PolarAngleAxis dataKey="name" tick={tickStyle}/><Radar name="You" dataKey="you" stroke={chartBlue} fill={chartBlue} fillOpacity={.25}/><Radar name="Dept. Avg." dataKey="dept" stroke="#94A3B8" fill="#CBD5E1" fillOpacity={.15} strokeDasharray="4 3"/><Legend/></RadarChart></ResponsiveContainer></div></Panel>
       <Panel title="Personal Concordance Trend" subtitle="Your improvement over the last 6 months"><div className="chart radar"><ResponsiveContainer><AreaChart data={personalTrend} margin={{top:10,right:12,left:-12,bottom:0}}><defs><linearGradient id="greenFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={green} stopOpacity=".28"/><stop offset="1" stopColor={green} stopOpacity="0"/></linearGradient></defs><CartesianGrid stroke={gridStyle} strokeDasharray="4 4"/><XAxis dataKey="month" tick={tickStyle} axisLine={false} tickLine={false}/><YAxis domain={[70,95]} ticks={[70,77,84,95]} tick={tickStyle} axisLine={false} tickLine={false}/><Tooltip/><Area type="monotone" dataKey="rate" stroke={green} strokeWidth={2.5} fill="url(#greenFade)" dot={{r:4,fill:"#0F1B2D",stroke:green,strokeWidth:2}}/></AreaChart></ResponsiveContainer></div></Panel>
     </div>
     <Panel title="Recent Learning Activity" subtitle="Expert feedback and clinician-accepted AI comparisons" className="learning-list">
-      {aiAccepted.map(item => <article className="learning-row accepted-learning-row" key={item.id}><div className="learning-meta"><Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link><span className="category ai-category">AI accepted</span><span>Finalized {item.finalizedAt}</span></div><div className="dx-compare"><span>Your Dx: <b>{item.caseItem.clinicianDx}</b></span><span>Accepted AI Dx: <b>{item.caseItem.aiDx}</b></span></div><p className="takeaway ai-learning"><BrainCircuit size={16}/><strong>Reflection:</strong>Review the {item.matchRating}% clinician/AI match and the model’s detected features in the saved case record.</p></article>)}
-      {learningCases.map(c=><article className="learning-row" key={c.caseId}><div className="learning-meta"><b className="id-link">{c.caseId}</b><span className="category">{c.category}</span><span>Reviewed {c.reviewedAt}</span></div><div className="dx-compare"><span>Your Dx: <b>{c.yourDx}</b></span><span>Expert Final Dx: <b>{c.expertFinalDx}</b></span></div><p className="takeaway"><BookOpen size={16}/><strong>Key Takeaway:</strong>{c.keyTakeaway}</p></article>)}
+      {clinicianFinalized.map(item => { const maintained = item.finalizedDecision === "clinician-maintained"; return <article className="learning-row accepted-learning-row" key={item.id}><div className="learning-meta"><Link className="id-link" to={`/cases/${item.caseItem.patientId}`}>{item.caseItem.patientId}</Link><span className={`category ${maintained ? "maintained-category" : "ai-category"}`}>{maintained ? "Clinician maintained" : "AI accepted"}</span><span>Finalized {item.finalizedAt}</span></div><div className="dx-compare"><span>Your Dx: <b>{item.caseItem.clinicianDx}</b></span><span>{maintained ? "AI Comparison" : "Accepted AI Dx"}: <b>{item.caseItem.aiDx}</b></span></div><p className={`takeaway ${maintained ? "maintained-learning" : "ai-learning"}`}>{maintained ? <Stethoscope size={16}/> : <BrainCircuit size={16}/>}<strong>Reflection:</strong>Review the {item.matchRating}% clinician/AI match and the model’s detected features in the saved case record.</p></article>; })}
+      {learningCases.map(c=><article className="learning-row" key={c.caseId}><div className="learning-meta">{reviewedByPatientId.has(c.caseId) ? <Link className="id-link" to={`/cases/${c.caseId}`}>{c.caseId}</Link> : <b className="id-link">{c.caseId}</b>}<span className="category">{c.category}</span><span>Reviewed {c.reviewedAt}</span></div><div className="dx-compare"><span>Your Dx: <b>{c.yourDx}</b></span><span>Expert Final Dx: <b>{c.expertFinalDx}</b></span></div><p className="takeaway"><BookOpen size={16}/><strong>Key Takeaway:</strong>{c.keyTakeaway}</p></article>)}
     </Panel>
   </>;
 }
