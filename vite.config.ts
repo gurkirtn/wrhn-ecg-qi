@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { access, cp, mkdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";
-import tailwindcss from "@tailwindcss/postcss";
 import type { Plugin } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 
@@ -68,11 +67,9 @@ const localBindingConfig = {
 };
 
 export default defineConfig(async ({ mode }) => {
-  const css = { postcss: { plugins: [tailwindcss()] } };
   if (mode === "pages") {
     return {
       base: "/wrhn-ecg-qi/",
-      css,
       plugins: [react()],
       build: {
         outDir: "dist-pages",
@@ -91,7 +88,6 @@ export default defineConfig(async ({ mode }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
-    css,
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,

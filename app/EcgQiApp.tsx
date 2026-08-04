@@ -17,6 +17,7 @@ import { BrowserRouter, HashRouter, Link, MemoryRouter, Navigate, Route, Routes,
 import { cases, discrepancyData, learningCases, personalTrend, trend12 } from "./data";
 import type { Case, Priority } from "./data";
 
+// Domain types and mock workflow configuration.
 type WorkspaceRole = "clinician" | "expert";
 
 type NavItem = {
@@ -148,6 +149,7 @@ function MockLogin({ onLogin }: { onLogin: (account: MockAccount) => void }) {
   </main>;
 }
 
+// Role-aware application shell and shared in-memory case state.
 function Shell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -257,6 +259,7 @@ function Shell() {
   );
 }
 
+// Five-step clinician upload and comparison workflow.
 function UploadWorkflow({ onClose, onExpertSubmit, onClinicianFinalized, accountName, existingPatientIds }: { onClose: () => void; onExpertSubmit: (draft: UploadSubmissionDraft) => boolean; onClinicianFinalized: (draft: UploadSubmissionDraft, decision: "ai-accepted" | "clinician-maintained") => boolean; accountName: string; existingPatientIds: string[] }) {
   const navigate = useNavigate();
   const [mockSeed, setMockSeed] = useState(0);
@@ -384,6 +387,7 @@ function UploadWorkflow({ onClose, onExpertSubmit, onClinicianFinalized, account
   </div>;
 }
 
+// Shared visual components used by multiple pages.
 function WorkflowEcg({ compact = false, seed = 0 }: { compact?: boolean; seed?: number }) {
   const leads = compact ? ["I","II","V1","V5"] : ["I","II","III","aVR","aVL","aVF","V1","V2","V3","V4","V5","V6"];
   return <div className={`workflow-ecg ${compact ? "compact" : ""}`}><div className="ecg-meta"><b>12-LEAD ECG{compact ? "" : " — FLUTTER PATTERN DETECTED"}</b><span>ANONYMIZED · MOCK {seed + 1} · 25mm/s · 10mm/mV</span></div><div>{leads.map((lead,index) => <EcgStrip key={lead} lead={lead} phase={seed * 3 + index%3*4}/>)}</div></div>;
@@ -416,6 +420,7 @@ function PriorityBadge({ priority }: { priority: Priority }) {
 const tickStyle = { fontSize: 11, fill: "#94A3B8" };
 const gridStyle = "#26364D";
 
+// Page-level views. Keeping these together makes the prototype easy to trace.
 function Dashboard({ openUpload, submissions }: { openUpload: () => void; submissions: ClinicianReviewSubmission[] }) {
   const awaitingReviews = submissions.filter(item => item.status === "awaiting");
   const completedReviews = submissions.filter(item => item.status === "reviewed");
@@ -675,6 +680,7 @@ function SettingsPage() {
   </>;
 }
 
+// Adapts the same app to Sites, local development, and static GitHub Pages.
 export default function EcgQiApp({ initialPath = "/", staticHosting = false }: { initialPath?: string; staticHosting?: boolean }) {
   if (typeof window === "undefined") {
     return <MemoryRouter initialEntries={[initialPath]}><Shell/></MemoryRouter>;

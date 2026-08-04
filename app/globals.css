@@ -1,5 +1,3 @@
-@import "tailwindcss";
-
 :root {
   --blue:#4F8CFF; --banner:#316FF6; --green:#36D977; --amber:#F6A723; --red:#FF5C69;
   --purple:#A970FF; --text:#E7EEF8; --muted:#94A3B8; --border:#26364D; --bg:#07111F;
