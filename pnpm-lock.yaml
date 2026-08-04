@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  frontend:
     dependencies:
       lucide-react:
         specifier: ^1.27.0

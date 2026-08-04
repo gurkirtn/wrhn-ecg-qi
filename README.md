@@ -1,50 +1,47 @@
 # ECG-QI
 
-Prototype ECG quality-improvement workflow for Waterloo Regional Health
-Network. It separates clinician and expert-review workspaces and includes case
-submission, simulated AI comparison, expert adjudication, learning feedback,
-and aggregate reporting.
+ECG quality-improvement prototype for Waterloo Regional Health Network. The
+repository is organized as a full-stack monorepo so the interface, API,
+database, model research, and operating documentation can evolve separately.
 
-All records and ECG traces are synthetic. This project is for demonstration
-and education, not clinical diagnosis.
+All cases, users, images, waveforms, and AI outputs are synthetic. This project
+is for workflow demonstration and education, not clinical diagnosis or patient
+care.
 
-## Repository layout
+## Repository structure
 
-The project intentionally uses a small number of files. Each tracked file has a
-specific job:
+```text
+ecgqi/
+├── .github/       Issue templates, pull-request template, and CI workflows
+├── frontend/      Working Next/Vinext ECG-QI web application
+├── backend/       FastAPI extension scaffold and tests
+├── model/         Isolated model-research scaffold
+├── database/      Readable SQL schema, seed data, and migrations
+├── sample-data/   Synthetic development images only
+├── scripts/       Local database setup helpers
+├── docs/          Architecture, requirements, privacy, and deployment notes
+├── docker-compose.yml
+├── CONTRIBUTING.md
+└── LICENSE
+```
 
-| Location | Purpose |
-| --- | --- |
-| `app/EcgQiApp.tsx` | Application shell, upload workflow, role-based navigation, and page views |
-| `app/data.ts` | Mock cases, chart data, shared domain types, and simulated AI data |
-| `app/globals.css` | All visual styles and responsive rules |
-| `app/[[...slug]]/page.tsx` | One catch-all route that serves every app screen |
-| `app/layout.tsx` | Site metadata, fonts, favicon, and root HTML layout |
-| `worker/index.ts` | Small Cloudflare/Sites runtime adapter |
-| `vite.config.ts` | Shared build configuration for Sites and GitHub Pages |
-| `index.html` | Static entry point used only by GitHub Pages |
-| `tests/rendered-html.test.mjs` | Smoke tests for login and deep-linked routes |
+The hidden `.openai/hosting.json` and root pnpm files are required to keep the
+existing hosted demo and monorepo build working. The project intentionally
+continues to use pnpm, so `pnpm-lock.yaml` replaces the example
+`frontend/package-lock.json`.
 
-The remaining root files are standard package, TypeScript, hosting, and
-deployment configuration. Do not combine the files above merely to reduce the
-count: their separation keeps mock data, interface code, styling, and hosting
-concerns easy to find.
+## What currently works
 
-## Where to make changes
+- The frontend demo is complete and uses local in-memory state.
+- Clinician, expert reviewer, and dual-role demo accounts are available.
+- ECG upload, mock AI comparison, review routing, expert feedback, learning,
+  and analytics flows are interactive.
+- The backend exposes minimal development endpoints but is not yet connected
+  to the frontend.
+- The model directory is research scaffolding; the demo does not run a trained
+  model.
 
-- Change sample patients, diagnoses, charts, or AI fixtures in `app/data.ts`.
-- Change workflow behavior, pages, navigation, or local state in
-  `app/EcgQiApp.tsx`.
-- Change colors, spacing, layout, or responsive behavior in `app/globals.css`.
-- Add a new source file only when it represents a distinct reusable feature or
-  domain. Small page-specific components should stay in `app/EcgQiApp.tsx`.
-
-This is a front-end prototype. Submitted cases are held in React memory and
-reset when the page reloads. If persistent multi-user data is added later, keep
-the UI structure and replace the in-memory submission functions in `Shell`
-with a small server-backed data layer.
-
-## Run locally
+## Run the frontend
 
 Requires Node.js 22 or newer.
 
@@ -54,20 +51,36 @@ pnpm install
 pnpm dev
 ```
 
-Useful commands:
+Open `http://localhost:3000`.
+
+Useful root commands:
 
 ```bash
-pnpm dev          # local development server
+pnpm dev          # frontend development server
 pnpm build        # production Sites build
 pnpm build:pages  # static GitHub Pages build
-pnpm test         # production build plus route smoke tests
+pnpm test         # frontend build and route smoke tests
 ```
+
+## Run the backend
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Open `http://localhost:8000/docs` for the generated API documentation. To point
+future frontend API calls at it, copy `frontend/.env.local.example` to
+`frontend/.env.local`.
 
 ## Run in GitHub Codespaces
 
 1. Open the repository on GitHub.
 2. Select **Code** → **Codespaces** → **Create codespace on main**.
-3. In the Codespaces terminal, run:
+3. In the terminal, run:
 
 ```bash
 nvm install 22
@@ -77,14 +90,21 @@ pnpm install
 pnpm dev --host 0.0.0.0
 ```
 
-4. When Codespaces reports that port `3000` is available, select **Open in
-   Browser**. If the notification is dismissed, open the **Ports** tab, find
-   port `3000`, and select its globe icon.
+4. Open forwarded port `3000`. To share the temporary preview, change that
+   port's visibility to **Public** in the **Ports** tab.
 
-Keep the terminal process running while using the app. Stop it with `Ctrl+C`.
-To get later repository changes, run `git pull` before starting the app again.
+## Where to build next
 
-If the Codespace must be shared with someone else, open the **Ports** tab,
-right-click port `3000`, choose **Port Visibility**, and set it to **Public**.
-The public URL remains available only while the Codespace and development
-server are running.
+- Frontend routes: `frontend/src/app`
+- Current prototype workflow: `frontend/src/components/EcgQiApp.tsx`
+- Reusable interface components: `frontend/src/components`
+- Frontend API/auth/types: `frontend/src/lib`
+- Backend HTTP routes: `backend/app/routers`
+- Backend business logic: `backend/app/services`
+- Database entities: `backend/app/models` and `database/schema.sql`
+- Model experiments: `model/src` and `model/notebooks`
+
+Start with [the architecture guide](docs/architecture.md), then review
+[requirements](docs/requirements.md) and
+[security and privacy](docs/security-and-privacy.md) before connecting real
+storage, authentication, uploads, or model inference.

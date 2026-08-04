@@ -1,5 +1,5 @@
 {
-  "name": "wrhn-ecg-qi",
+  "name": "ecg-qi-monorepo",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.17.0",
@@ -7,32 +7,11 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
-    "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
-    "build:pages": "vite build --mode pages",
-    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs"
-  },
-  "dependencies": {
-    "lucide-react": "^1.27.0",
-    "next": "16.2.6",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "react-router-dom": "^7.18.1",
-    "recharts": "^3.10.1"
-  },
-  "devDependencies": {
-    "@cloudflare/vite-plugin": "1.37.1",
-    "@types/node": "22.19.19",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
-    "@vitejs/plugin-rsc": "0.5.26",
-    "react-server-dom-webpack": "19.2.6",
-    "typescript": "5.9.3",
-    "vinext": "0.0.50",
-    "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build && node scripts/stage_site_build.mjs",
+    "build:pages": "npm --prefix frontend run build:pages",
+    "start": "npm --prefix frontend run start",
+    "test": "npm --prefix frontend run test"
   },
   "type": "module"
 }

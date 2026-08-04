@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+**/node_modules
 /.pnpm-store/
 /.pnp
 .pnp.*
@@ -15,9 +16,9 @@
 /coverage
 
 # next.js
-/.next/
-/.vinext/
-/out/
+**/.next/
+**/.vinext/
+**/out/
 
 # misc
 .DS_Store
@@ -31,14 +32,29 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+!**/.env.example
+!**/.env.local.example
 
 # vercel
 .vercel
 
 # typescript
 next-env.d.ts
-/dist/
-/dist-pages/
-/.wrangler/
+*.tsbuildinfo
+**/dist/
+**/dist-pages/
+**/.wrangler/
 /outputs/
 /work/
+
+# Python and local application state
+**/__pycache__/
+**/.pytest_cache/
+**/.venv/
+*.py[cod]
+*.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+model/checkpoints/*
+!model/checkpoints/.gitkeep
